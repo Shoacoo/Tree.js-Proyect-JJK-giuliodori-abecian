@@ -1,0 +1,11 @@
+Model Information:
+* title:	Sukuna's finger
+* source:	https://sketchfab.com/3d-models/sukunas-finger-0094c76440e3447a900797ede9bad5bf
+* author:	André Souza (https://sketchfab.com/asouza)
+
+Model License:
+* license type:	CC-BY-NC-ND-4.0 (http://creativecommons.org/licenses/by-nc-nd/4.0/)
+* requirements:	Author must be credited. No commercial use. Modified versions can not be distributed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Sukuna's finger" (https://sketchfab.com/3d-models/sukunas-finger-0094c76440e3447a900797ede9bad5bf) by André Souza (https://sketchfab.com/asouza) licensed under CC-BY-NC-ND-4.0 (http://creativecommons.org/licenses/by-nc-nd/4.0/)
