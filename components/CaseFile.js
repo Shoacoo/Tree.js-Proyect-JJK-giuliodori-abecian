@@ -81,7 +81,7 @@ export default function CaseFile({ caseId }) {
     <Terminal
       crumbs={
         <>
-          <Link href="/indice">Índice · {SETTING.lot}</Link> / <strong>{data.code}</strong> / Control de integridad
+          <Link href="/">Bóveda</Link> / <Link href="/indice">Índice · {SETTING.lot}</Link> / <strong>{data.code}</strong> / Control de integridad
           <span className="terminal__crumbs-right">
             FORM. B3-07 · {SETTING.maintenanceOrder} · RESIDUO EN BÓVEDA {progress.leak}
           </span>

@@ -69,6 +69,7 @@ export default function CaseIndex() {
             <Toggle label="Sonido" checked={settings.sound} onChange={(v) => setSettings((s) => ({ ...s, sound: v }))} />
           </div>
           <div className="index__block">
+            <Link href="/" className="link">Volver a la bóveda</Link>
             <Link href="/creditos" className="link">Créditos y referencias</Link>
             {user ? (
               <button type="button" className="link" onClick={() => auth.signOut().then(() => router.push('/acceso'))}>

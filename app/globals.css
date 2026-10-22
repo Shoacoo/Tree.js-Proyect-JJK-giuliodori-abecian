@@ -316,3 +316,37 @@ h1, h2, h3, p { margin: 0; }
   .manga__page { grid-template-columns: 1fr; }
   .access__intro { border-right: 0; }
 }
+
+/* Bóveda B3 (portada 3D) */
+.vault { position: relative; height: 100vh; height: 100dvh; overflow: hidden; background: var(--mesa); color: var(--papel); }
+.vault-canvas, .vault-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.vault-loading { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-mono); font-size: 13px; color: #bfb6a0; }
+.vault .label { color: #bfb6a0; }
+.vault__hud { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px 20px; padding: 14px clamp(16px, 3vw, 32px); background: linear-gradient(rgba(13, 11, 9, 0.85), transparent); pointer-events: none; }
+.vault__hud > * { pointer-events: auto; }
+.vault__place { font-size: clamp(18px, 2.4vw, 24px); font-weight: 700; margin-top: 4px; }
+.vault__hud-right { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.vault__chip { min-height: 36px; padding: 6px 12px; background: rgba(13, 11, 9, 0.75); color: var(--papel); border: 1px solid #5a5046; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em; cursor: pointer; }
+.vault__chip:hover, .vault__chip.is-active { border-color: var(--papel); background: rgba(231, 224, 205, 0.12); }
+.vault__tooltip { position: absolute; left: 50%; top: 50%; transform: translate(-50%, 28px); padding: 4px 10px; background: rgba(13, 11, 9, 0.85); border-left: 2px solid var(--brasa); font-family: var(--font-mono); font-size: 12px; pointer-events: none; }
+.vault__panel { position: absolute; right: clamp(16px, 3vw, 32px); bottom: clamp(16px, 3vw, 32px); width: min(380px, calc(100% - 32px)); display: grid; gap: 10px; }
+.vault__card { background: var(--papel); color: var(--tinta); padding: 16px 18px; display: grid; gap: 10px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); animation: panel-in 0.3s ease-out; }
+.vault__card .label { color: var(--gris); }
+.vault__card p { font-size: 15px; line-height: 1.5; }
+.vault__card--warn { border-left: 4px solid var(--sello); }
+.vault__nav { position: absolute; left: clamp(16px, 3vw, 32px); bottom: clamp(16px, 3vw, 32px); max-width: min(560px, calc(100% - 32px)); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.vault__nav > .label { width: 100%; }
+.vault__boxes { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+.vault__help { width: 100%; font-family: var(--font-mono); font-size: 11px; color: #bfb6a0; }
+.vault__intro { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(13, 11, 9, 0.78); z-index: 5; }
+.vault__intro-card { width: min(720px, 100%); display: grid; gap: 18px; }
+.vault__intro-card .lead { color: #e7e0cd; }
+.vault__intro-card .muted { color: #cfc6b0; }
+.vault__intro-card .btn--primary { background: var(--papel); color: var(--tinta); justify-self: start; }
+.vault[data-influence='2'] .vault__place, .vault[data-influence='3'] .vault__place { text-shadow: 2px 0 rgba(158, 31, 23, 0.7); }
+.vault[data-reduce='true'] * { animation: none !important; }
+@media (max-width: 760px) {
+  .vault__panel { left: 16px; right: 16px; width: auto; bottom: auto; top: 96px; }
+  .vault__nav { left: 16px; right: 16px; bottom: 16px; }
+  .vault__hud-right .vault__chip { min-height: 32px; padding: 4px 8px; }
+}

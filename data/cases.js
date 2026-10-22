@@ -15,6 +15,7 @@ export const CASES = [
   {
     id: '01',
     code: 'EXP-01',
+    box: 'B3-04',
     title: 'Dedo momificado',
     place: 'Santuario derrumbado, Okutama (Tokio)',
     barcode: 'B3-2011-0001-D',
@@ -108,6 +109,7 @@ export const CASES = [
   {
     id: '02',
     code: 'EXP-02',
+    box: 'B3-08',
     title: 'Dedo momificado',
     place: 'Túnel ferroviario clausurado, Nagano',
     barcode: 'B3-2014-0002-D',
@@ -177,6 +179,7 @@ export const CASES = [
   {
     id: '03',
     code: 'EXP-03',
+    box: 'B3-13',
     title: 'Dedo momificado',
     place: 'Depósito portuario, Yokohama',
     barcode: 'B3-2016-0003-D',
@@ -294,9 +297,20 @@ export const CASES = [
   },
 ];
 
+// Cajas del Depósito B3. Tres guardan los dedos del lote; la B3-11 figura vacía en el sistema.
+export const VAULT_BOXES = {
+  left: ['B3-07', 'B3-08', 'B3-09', 'B3-10', 'B3-11', 'B3-12', 'B3-13', 'B3-14', 'B3-15'],
+  right: ['B3-01', 'B3-02', 'B3-03', 'B3-04', 'B3-05', 'B3-06'],
+};
+export const HIDDEN_BOX = 'B3-11';
+
 export const SEAL_STATES = ['Intacto', 'Debilitado', 'Roto'];
 
 export const MEMORY_TOTAL = CASES.reduce((sum, c) => sum + c.seals.length, 0);
+
+export function getCaseByBox(box) {
+  return CASES.find((c) => c.box === box) ?? null;
+}
 
 export function getCase(id) {
   return CASES.find((c) => c.id === id) ?? null;

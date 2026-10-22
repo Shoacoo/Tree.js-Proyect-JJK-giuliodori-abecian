@@ -20,7 +20,7 @@ Al archivar los tres dedos aparece el EXP-00: la caja B3-11, que guardaba un cua
 
 | Ruta | Contenido | Componentes |
 | --- | --- | --- |
-| `/` | Portada y premisa | Server |
+| `/` | Bóveda B3 en 3D: estanterías con cajas, mesa de inspección y terminal. Premisa en la intro | Server + `Vault` / `VaultRoom3D` (cliente) |
 | `/acceso` | Login anónimo, Google y email/contraseña | Server + `AuthPanel` (cliente) |
 | `/indice` | Índice de expedientes, ajustes y registro de actividad | `CaseIndex` (cliente: depende del progreso) |
 | `/expediente/[id]` | Ruta dinámica: 01, 02, 03 y 00. Metadata por expediente | Server + `CaseFile` / `FinalArchive` (cliente) |
@@ -28,6 +28,10 @@ Al archivar los tres dedos aparece el EXP-00: la caja B3-11, que guardaba un cua
 | `/creditos` | Créditos y referencias | Server |
 
 Estados de carga (`loading.js`, el canto del velo), error (`error.js`) y 404 (`not-found.js`) en tono institucional.
+
+## Bóveda B3
+
+La experiencia empieza dentro del depósito. La persona usuaria recorre la sala (arrastrar para mirar, click para acercarse), busca los dedos en las cajas de las estanterías (B3-04, B3-08 y B3-13), abre la caja y lleva el dedo a la mesa de inspección. A la derecha de la mesa está la terminal B3-T02: ahí se identifica y accede al índice. Inspeccionar el dedo sobre la mesa abre su expediente. La caja B3-11 figura vacía hasta archivar los tres dedos. Todo se puede hacer también con los botones "Moverse sin 3D".
 
 ## Mecánica
 
@@ -42,13 +46,13 @@ Estados de carga (`loading.js`, el canto del velo), error (`error.js`) y 404 (`n
 
 ## Three.js
 
-`components/Reliquary3D.js` usa Three.js directo (sin React Three Fiber):
+`components/VaultRoom3D.js` (la sala, `three/vault.js`) y `components/Reliquary3D.js` (el dedo de cada expediente) usan Three.js directo (sin React Three Fiber):
 
 - Escena, `PerspectiveCamera` y `WebGLRenderer` con sombras y tone mapping.
 - Geometrías: dedo procedural con `LatheGeometry` deformada con ruido (`three/finger.js`), bandas ofuda (`CylinderGeometry` con `CanvasTexture`), bandeja, mesa y regla en escala real (1 unidad = 1 cm).
 - Luces: `SpotLight` cenital de 3200 K, `HemisphereLight`, `PointLight` roja del aura y luz rasante de inspección.
 - Recursos propios: shader de aura (`three/auraShader.js`), sistema de partículas con shader (`three/particles.js`) y texturas generadas en canvas.
-- Interacción: raycasting para hover y mantener presionado, arrastre para girar, rueda y botones para zoom.
+- Interacción: raycasting para elegir cajas, mesa y terminal, hover y mantener presionado, arrastre para girar, rueda y botones para zoom.
 - `requestAnimationFrame`, `ResizeObserver` para adaptar el canvas, `setPixelRatio(Math.min(devicePixelRatio, 2))` y `dispose()` de geometrías, materiales, texturas y renderer al desmontar.
 
 ## Accesibilidad
@@ -94,8 +98,8 @@ npm run dev
 
 ```
 app/                    rutas (App Router), layout, loading, error, not-found
-components/             Terminal, CaseIndex, CaseFile, Reliquary3D, MangaFlashback, FinalArchive, AuthPanel
-three/                  finger, ofuda, auraShader, particles, scenery
+components/             Vault, VaultRoom3D, Terminal, CaseIndex, CaseFile, Reliquary3D, MangaFlashback, FinalArchive, AuthPanel
+three/                  vault, finger, ofuda, auraShader, particles, scenery
 data/                   cases.js (expedientes, sellos, flashbacks), endings.js
 hooks/useProgress.js    estado narrativo y persistencia local/remota
 lib/                    firebase.js, sound.js (Web Audio)
