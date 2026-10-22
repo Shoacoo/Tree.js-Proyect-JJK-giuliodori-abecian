@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { createAuraMaterial } from '@/three/auraShader';
 import { createFinger } from '@/three/finger';
+import { applyFingerModel } from '@/three/fingerModel';
 import { createLooseOfuda, createSealBand } from '@/three/ofuda';
 import { CursedParticles } from '@/three/particles';
 import { createScenery } from '@/three/scenery';
@@ -119,6 +120,7 @@ export default function Reliquary3D({
     const aura = new THREE.Mesh(skin.geometry, createAuraMaterial());
     aura.renderOrder = 2;
     relic.add(aura);
+    applyFingerModel(finger, aura, length);
 
     const bands = new Map();
     caseData.seals.forEach((seal) => {
@@ -375,6 +377,7 @@ export default function Reliquary3D({
       canvas.removeEventListener('wheel', onWheel);
       liveState.sync = null;
       if (apiRef) apiRef.current = null;
+      finger.userData.disposed = true; // por si el modelo termina de cargar después de salir
       aura.geometry = new THREE.BufferGeometry(); // la geometría del dedo se libera una sola vez
       particles.dispose();
       disposeObject(scene);

@@ -110,6 +110,7 @@ firestore.rules
 
 - *Jujutsu Kaisen* © Gege Akutami / Shueisha. No se usa arte oficial.
 - Tipografías: Zen Kaku Gothic New, IBM Plex Mono, Yuji Syuku (Google Fonts, SIL OFL).
+- Modelo del dedo: ["Sukuna's finger"](https://sketchfab.com/3d-models/sukunas-finger-0094c76440e3447a900797ede9bad5bf) de André Souza (@asouza), [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/). Se usa sin modificar la malla ni las texturas (`public/models/sukuna-finger.glb`, cargado con `GLTFLoader` en `three/fingerModel.js`; si falta, queda el dedo procedural).
 - Three.js (MIT), Next.js (MIT), Firebase JS SDK (Apache 2.0).
 - Sonido generado con Web Audio API.
 - Referencias: sitio de *Requiem for a Dream* (Hi-ReS!, 2000), *A Journal of Insomnia* (NFB, 2013).

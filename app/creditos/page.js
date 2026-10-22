@@ -14,7 +14,18 @@ export default function CreditsPage() {
       <h2 className="title">Recursos</h2>
       <ul>
         <li>Tipografías: Zen Kaku Gothic New, IBM Plex Mono y Yuji Syuku (Google Fonts, licencia SIL Open Font License).</li>
-        <li>3D: Three.js (MIT). Dedo procedural con LatheGeometry, shader de aura y partículas propios.</li>
+        <li>3D: Three.js (MIT). Shader de aura, partículas y bóveda propios; dedo procedural con LatheGeometry como respaldo.</li>
+        <li>
+          Modelo 3D del dedo:{' '}
+          <a href="https://sketchfab.com/3d-models/sukunas-finger-0094c76440e3447a900797ede9bad5bf" target="_blank" rel="noreferrer">
+            “Sukuna&apos;s finger”
+          </a>{' '}
+          de André Souza (
+          <a href="https://sketchfab.com/asouza" target="_blank" rel="noreferrer">@asouza</a>
+          ), licencia{' '}
+          <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/" target="_blank" rel="noreferrer">CC BY-NC-ND 4.0</a>. Se usa sin
+          modificaciones.
+        </li>
         <li>Sonido: generado en el navegador con Web Audio API.</li>
         <li>Inscripción de los ofuda: 急急如律令, fórmula tradicional del onmyōdō.</li>
       </ul>

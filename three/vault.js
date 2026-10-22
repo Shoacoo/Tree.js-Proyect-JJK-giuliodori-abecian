@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createAuraMaterial } from './auraShader';
 import { createFinger } from './finger';
+import { applyFingerModel } from './fingerModel';
 import { createSealBand } from './ofuda';
 
 // Sala de Catalogación del Depósito B3. Unidades en metros.
@@ -197,6 +198,7 @@ function createBoxedFinger(caseData) {
   group.add(finger);
   const aura = new THREE.Mesh(skin.geometry, createAuraMaterial());
   group.add(aura);
+  applyFingerModel(finger, aura, caseData.length);
   group.scale.setScalar(0.022);
   group.rotation.y = 0.25;
   group.userData = { aura };
@@ -349,6 +351,7 @@ export function createTableRelic(caseData, sealState) {
   });
   const aura = new THREE.Mesh(skin.geometry, createAuraMaterial());
   group.add(aura);
+  applyFingerModel(finger, aura, caseData.length);
   group.scale.setScalar(0.03);
   group.position.y = 0.025;
   group.userData = { aura };
