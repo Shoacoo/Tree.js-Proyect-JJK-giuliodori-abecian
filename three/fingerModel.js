@@ -91,6 +91,7 @@ export async function applyFingerModel(finger, aura, length) {
     holder.add(mesh);
     auraGeometries.push(geometry);
   });
+  finger.userData.profile = measureProfile(auraGeometries, length);
   finger.children.forEach((child) => {
     child.visible = false;
   });
@@ -103,5 +104,51 @@ export async function applyFingerModel(finger, aura, length) {
       aura.add(extra);
     });
   }
-  return true;
+  return finger.userData.profile;
+}
+
+// Perfil del modelo ya ubicado: para cada tramo en X, centro y semiancho en Y y Z (cm).
+function measureProfile(geometries, length) {
+  const bins = 48;
+  const slots = Array.from({ length: bins }, () => ({ minY: Infinity, maxY: -Infinity, minZ: Infinity, maxZ: -Infinity }));
+  geometries.forEach((geometry) => {
+    const pos = geometry.attributes.position;
+    for (let i = 0; i < pos.count; i += 1) {
+      const t = (pos.getX(i) + length / 2) / length;
+      const slot = slots[Math.min(bins - 1, Math.max(0, Math.floor(t * bins)))];
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      if (y < slot.minY) slot.minY = y;
+      if (y > slot.maxY) slot.maxY = y;
+      if (z < slot.minZ) slot.minZ = z;
+      if (z > slot.maxZ) slot.maxZ = z;
+    }
+  });
+  return (x) => {
+    const t = (x + length / 2) / length;
+    const slot = slots[Math.min(bins - 1, Math.max(0, Math.floor(t * bins)))];
+    if (!Number.isFinite(slot.minY)) return null;
+    return {
+      y: (slot.minY + slot.maxY) / 2,
+      z: (slot.minZ + slot.maxZ) / 2,
+      ry: (slot.maxY - slot.minY) / 2,
+      rz: (slot.maxZ - slot.minZ) / 2,
+    };
+  };
+}
+
+// Ajusta una banda ofuda (createSealBand) al grosor real del modelo en su posición.
+export function fitBandToProfile(band, profile) {
+  const section = profile?.(band.position.x);
+  if (!section) return;
+  const radius = Math.max(section.ry, section.rz) + 0.06;
+  const width = band.geometry.parameters?.height ?? 1.15;
+  band.geometry.dispose();
+  band.geometry = new THREE.CylinderGeometry(radius, radius * 0.98, width * 1.3, 64, 1, true);
+  band.geometry.rotateZ(Math.PI / 2);
+  band.scale.set(1, section.ry >= section.rz ? 1 : (section.ry + 0.06) / radius, section.rz >= section.ry ? 1 : (section.rz + 0.06) / radius);
+  band.position.y = section.y;
+  band.position.z = section.z;
+  band.userData.baseY = section.y;
+  band.userData.radius = radius;
 }

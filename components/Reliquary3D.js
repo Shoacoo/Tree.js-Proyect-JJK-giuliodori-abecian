@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { createAuraMaterial } from '@/three/auraShader';
 import { createFinger } from '@/three/finger';
-import { applyFingerModel } from '@/three/fingerModel';
+import { applyFingerModel, fitBandToProfile } from '@/three/fingerModel';
 import { createLooseOfuda, createSealBand } from '@/three/ofuda';
 import { CursedParticles } from '@/three/particles';
 import { createScenery } from '@/three/scenery';
@@ -120,7 +120,6 @@ export default function Reliquary3D({
     const aura = new THREE.Mesh(skin.geometry, createAuraMaterial());
     aura.renderOrder = 2;
     relic.add(aura);
-    applyFingerModel(finger, aura, length);
 
     const bands = new Map();
     caseData.seals.forEach((seal) => {
@@ -128,6 +127,9 @@ export default function Reliquary3D({
       band.userData.ink = seal.ink;
       relic.add(band);
       bands.set(seal.id, band);
+    });
+    applyFingerModel(finger, aura, length).then((profile) => {
+      if (profile) bands.forEach((band) => fitBandToProfile(band, profile));
     });
 
     const particles = new CursedParticles(reduceEffects ? 220 : 700);

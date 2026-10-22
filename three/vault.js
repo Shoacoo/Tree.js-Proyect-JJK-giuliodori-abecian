@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createAuraMaterial } from './auraShader';
 import { createFinger } from './finger';
-import { applyFingerModel } from './fingerModel';
+import { applyFingerModel, fitBandToProfile } from './fingerModel';
 import { createSealBand } from './ofuda';
 
 // Sala de Catalogación del Depósito B3. Unidades en metros.
@@ -346,12 +346,18 @@ export function createTableRelic(caseData, sealState) {
   const group = new THREE.Group();
   const { group: finger, skin } = createFinger(caseData.length);
   group.add(finger);
+  const bands = [];
   caseData.seals.forEach((seal) => {
-    if (!sealState?.[seal.id]?.peeled) group.add(createSealBand(seal, caseData.length));
+    if (sealState?.[seal.id]?.peeled) return;
+    const band = createSealBand(seal, caseData.length);
+    group.add(band);
+    bands.push(band);
   });
   const aura = new THREE.Mesh(skin.geometry, createAuraMaterial());
   group.add(aura);
-  applyFingerModel(finger, aura, caseData.length);
+  applyFingerModel(finger, aura, caseData.length).then((profile) => {
+    if (profile) bands.forEach((band) => fitBandToProfile(band, profile));
+  });
   group.scale.setScalar(0.03);
   group.position.y = 0.025;
   group.userData = { aura };
