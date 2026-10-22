@@ -31,7 +31,9 @@ Estados de carga (`loading.js`, el canto del velo), error (`error.js`) y 404 (`n
 
 ## Bóveda B3
 
-La experiencia empieza dentro del depósito. La persona usuaria recorre la sala (arrastrar para mirar, click para acercarse), busca los dedos en las cajas de las estanterías (B3-04, B3-08 y B3-13), abre la caja y lleva el dedo a la mesa de inspección. A la derecha de la mesa está la terminal B3-T02: ahí se identifica y accede al índice. Inspeccionar el dedo sobre la mesa abre su expediente. La caja B3-11 figura vacía hasta archivar los tres dedos. Todo se puede hacer también con los botones "Moverse sin 3D".
+La experiencia empieza dentro del depósito. La persona usuaria recorre la sala (arrastrar para mirar, click para acercarse), busca los dedos en las cajas de las estanterías (B3-04, B3-08 y B3-13), abre la caja y lleva el dedo a la mesa de inspección. A la derecha de la mesa está la terminal B3-T02: ahí se identifica y accede al índice. Inspeccionar el dedo sobre la mesa abre su expediente. La caja B3-11 figura vacía hasta archivar los tres dedos. La pantalla de la terminal es una interfaz propia, dibujada en canvas y clickeable por raycasting (coordenadas UV): sesión, lote 2018-B3 con el estado de cada expediente, registro de actividad, monitor de la barrera y protocolo. Todo se puede hacer también con los botones "Moverse sin 3D".
+
+La sala usa texturas procedurales generadas en canvas (`three/proctex.js`): madera de cada caja con manchas, rayones y desgaste propios, acero pintado con saltaduras y óxido, concreto con humedad y grietas, baldosas gastadas, papel envejecido. Las cajas con dedos tienen luz interior, grietas emisivas y una rendija que brilla según el estado del expediente.
 
 ## Mecánica
 
@@ -99,7 +101,7 @@ npm run dev
 ```
 app/                    rutas (App Router), layout, loading, error, not-found
 components/             Vault, VaultRoom3D, Terminal, CaseIndex, CaseFile, Reliquary3D, MangaFlashback, FinalArchive, AuthPanel
-three/                  vault, finger, ofuda, auraShader, particles, scenery
+three/                  vault (vaultRoom, vaultShelf, vaultTable, vaultTerminal), proctex, fonts, fingerModel, finger, ofuda, auraShader, particles, scenery
 data/                   cases.js (expedientes, sellos, flashbacks), endings.js
 hooks/useProgress.js    estado narrativo y persistencia local/remota
 lib/                    firebase.js, sound.js (Web Audio)

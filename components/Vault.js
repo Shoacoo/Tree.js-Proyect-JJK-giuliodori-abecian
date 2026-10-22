@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { PersistenceBadge } from '@/components/Terminal';
-import { CASES, HIDDEN_BOX, VAULT_BOXES, getCaseByBox } from '@/data/cases';
+import { CASES, HIDDEN_BOX, MEMORY_TOTAL, VAULT_BOXES, getCaseByBox } from '@/data/cases';
 import { isCaseUnlocked, useProgress } from '@/hooks/useProgress';
 import { startHum, stopHum } from '@/lib/sound';
 
@@ -43,7 +43,7 @@ function describeBox(code, status) {
  */
 export default function Vault({ intro }) {
   const router = useRouter();
-  const { progress, hydrated, signedIn, operator, influence, settings, setSettings } = useProgress();
+  const { progress, hydrated, signedIn, operator, influence, settings, setSettings, persistence } = useProgress();
   const [entered, setEntered] = useState(false);
   const [view, setView] = useState('overview');
   const [openBox, setOpenBox] = useState(null);
@@ -97,8 +97,17 @@ export default function Vault({ intro }) {
 
   const activate = useCallback(
     (what) => {
-      if (what === 'terminal') {
+      if (what === 'terminal' || what === 'index') {
         router.push(signedIn ? '/indice' : '/acceso');
+        return;
+      }
+      if (what === 'login') {
+        router.push('/acceso');
+        return;
+      }
+      if (what.startsWith('case:')) {
+        const id = what.slice(5);
+        if (signedIn && isCaseUnlocked(progress, id)) router.push(`/expediente/${id}`);
         return;
       }
       if (!tableCaseId) {
@@ -111,7 +120,7 @@ export default function Vault({ intro }) {
       }
       router.push(`/expediente/${tableCaseId}`);
     },
-    [router, signedIn, tableCaseId],
+    [router, signedIn, tableCaseId, progress],
   );
 
   const carry = (caseId) => {
@@ -132,7 +141,7 @@ export default function Vault({ intro }) {
 
   const openInfo = openBox ? describeBox(openBox, boxStatus[openBox]) : null;
   const tableCase = CASES.find((c) => c.id === tableCaseId);
-  const hoverText = hovered
+  const hoverText = hovered && !(view === 'terminal' && hovered.type === 'terminal')
     ? hovered.type === 'box'
       ? hovered.code
       : hovered.type === 'shelf'
@@ -141,6 +150,15 @@ export default function Vault({ intro }) {
           ? 'Mesa de inspección'
           : 'Terminal B3-T02'
     : null;
+  const screenData = {
+    cases: CASES.map((c) => ({ id: c.id, code: c.code, place: c.place, box: c.box, seals: c.seals.length, status: boxStatus[c.box] })),
+    hiddenStatus: boxStatus[HIDDEN_BOX] ?? null,
+    log: progress.log ?? [],
+    leak: progress.leak ?? 0,
+    memory: progress.memory?.length ?? 0,
+    memoryTotal: MEMORY_TOTAL,
+    persistence,
+  };
   const shelfCodes = view === 'left' ? VAULT_BOXES.left : view === 'right' ? VAULT_BOXES.right : [];
 
   return (
@@ -156,6 +174,7 @@ export default function Vault({ intro }) {
         signedIn={signedIn}
         operator={operator}
         reduceEffects={settings.reduceEffects}
+        screenData={screenData}
         onNavigate={navigate}
         onBoxClick={clickBox}
         onActivate={activate}
@@ -230,6 +249,7 @@ export default function Vault({ intro }) {
           <div className="vault__card">
             <div className="label">TERMINAL B3-T02</div>
             <p>{signedIn ? `Sesión abierta: ${operator}.` : 'Sin sesión. El sistema registra cada inspección.'}</p>
+            <p className="vault__hint">Usá el menú de la pantalla: sesión, lote, registro, barrera y protocolo.</p>
             <button type="button" className="btn btn--primary" onClick={() => activate('terminal')}>
               {signedIn ? 'Abrir índice de expedientes' : 'Identificarse'}
             </button>

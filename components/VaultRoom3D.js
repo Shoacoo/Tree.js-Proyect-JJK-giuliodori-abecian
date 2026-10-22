@@ -4,17 +4,18 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { CASES, HIDDEN_BOX, VAULT_BOXES, getCaseByBox } from '@/data/cases';
 import { CursedParticles } from '@/three/particles';
-import { createRoom, createShelf, createTable, createTableRelic, createTerminal, drawTerminalScreen } from '@/three/vault';
+import { glowTexture } from '@/three/proctex';
+import { SCREEN, createRoom, createShelf, createTable, createTableRelic, createTerminal, drawTerminalScreen } from '@/three/vault';
 
 const MAX_PIXEL_RATIO = 2;
 
 // Puntos de vista de la sala: posición de la cámara, punto al que mira y cuánto se puede girar.
 export const VIEWS = {
   overview: { position: [0, 1.62, 3.6], target: [0, 1.2, -1.2], yaw: 0.75, pitch: 0.3 },
-  left: { position: [-3.1, 1.85, -1.75], target: [-3.1, 1.2, -3.55], yaw: 0.4, pitch: 0.35 },
-  right: { position: [3.1, 1.85, -1.75], target: [3.1, 1.2, -3.55], yaw: 0.4, pitch: 0.35 },
+  left: { position: [-3.1, 1.72, -1.15], target: [-3.1, 1.42, -3.55], yaw: 0.4, pitch: 0.35 },
+  right: { position: [3.1, 1.72, -1.15], target: [3.1, 1.42, -3.55], yaw: 0.4, pitch: 0.35 },
   table: { position: [0, 1.55, 0.75], target: [0, 0.9, -0.02], yaw: 0.6, pitch: 0.2 },
-  terminal: { position: [1.62, 1.2, 0.58], target: [2.5, 1.08, 0.32], yaw: 0.2, pitch: 0.15 },
+  terminal: { position: [1.86, 1.12, 0.5], target: [2.46, 1.05, 0.3], yaw: 0.35, pitch: 0.2 },
 };
 
 function disposeObject(root) {
@@ -45,6 +46,7 @@ export default function VaultRoom3D({
   signedIn,
   operator,
   reduceEffects,
+  screenData,
   onNavigate,
   onBoxClick,
   onActivate,
@@ -54,7 +56,7 @@ export default function VaultRoom3D({
   const live = useRef({});
 
   useEffect(() => {
-    Object.assign(live.current, { view, boxStatus, openBox, influence, signedIn, operator, reduceEffects, onNavigate, onBoxClick, onActivate, onHover });
+    Object.assign(live.current, { view, boxStatus, openBox, influence, signedIn, operator, reduceEffects, screenData, onNavigate, onBoxClick, onActivate, onHover });
     live.current.sync?.();
   });
 
@@ -101,7 +103,7 @@ export default function VaultRoom3D({
     curseLight.position.set(0, 1.6, -3);
     scene.add(curseLight);
 
-    const { group: roomGroup, tube } = createRoom();
+    const { group: roomGroup, tubes, flickerTubes } = createRoom();
     scene.add(roomGroup);
 
     const shelves = {
@@ -116,6 +118,22 @@ export default function VaultRoom3D({
     scene.add(table.group);
     const terminal = createTerminal();
     scene.add(terminal.group);
+
+    // Polvo suspendido que se ve en el cono de la lámpara.
+    const dustCount = reduceEffects ? 120 : 420;
+    const dustPositions = new Float32Array(dustCount * 3);
+    for (let i = 0; i < dustCount; i += 1) {
+      dustPositions[i * 3] = (Math.random() - 0.5) * 3.2;
+      dustPositions[i * 3 + 1] = 0.9 + Math.random() * 1.6;
+      dustPositions[i * 3 + 2] = (Math.random() - 0.5) * 3.2 - 0.6;
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+    const dust = new THREE.Points(
+      dustGeometry,
+      new THREE.PointsMaterial({ map: glowTexture('255,240,210'), size: 0.014, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }),
+    );
+    scene.add(dust);
 
     const particles = new CursedParticles(reduceEffects ? 150 : 500);
     particles.material.uniforms.uPixelRatio.value = renderer.getPixelRatio();
@@ -204,6 +222,22 @@ export default function VaultRoom3D({
       return hits.find((h) => h.object.userData.type === 'box')?.object.userData ?? hits[0]?.object.userData ?? null;
     };
 
+    // Pantalla de la terminal: menú propio, con zonas clickeables.
+    const screenState = { tab: liveState.signedIn ? 'lot' : 'session', hover: null, hotspots: [] };
+    const screenRay = new THREE.Raycaster();
+    const screenPick = (event) => {
+      if (currentView !== 'terminal') return null;
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      screenRay.setFromCamera(pointer, camera);
+      const hit = screenRay.intersectObject(terminal.screen, false)[0];
+      if (!hit?.uv) return null;
+      const x = hit.uv.x * SCREEN.width;
+      const y = (1 - hit.uv.y) * SCREEN.height;
+      return screenState.hotspots.find((h) => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h)?.action ?? 'screen';
+    };
+
     let hovered = null;
     let drag = null;
     const hoverKey = (h) => (h ? `${h.type}:${h.code ?? h.side ?? ''}` : null);
@@ -218,12 +252,18 @@ export default function VaultRoom3D({
         look.goalPitch = THREE.MathUtils.clamp(drag.pitch + dy * 0.003, -v.pitch, v.pitch);
         return;
       }
+      const screenAction = screenPick(event);
+      const screenHover = screenAction && screenAction !== 'screen' ? screenAction : null;
+      if (screenHover !== screenState.hover) {
+        screenState.hover = screenHover;
+        redrawScreen();
+      }
       const hit = pick(event);
       if (hoverKey(hit) !== hoverKey(hovered)) {
         hovered = hit;
-        renderer.domElement.style.cursor = hit ? 'pointer' : 'grab';
         liveState.onHover?.(hit);
       }
+      renderer.domElement.style.cursor = screenHover ? 'pointer' : screenAction ? 'default' : hit ? 'pointer' : 'grab';
     };
 
     const onPointerDown = (event) => {
@@ -236,6 +276,14 @@ export default function VaultRoom3D({
       const wasDrag = drag?.moved;
       drag = null;
       if (wasDrag) return;
+      const screenAction = screenPick(event);
+      if (screenAction) {
+        if (screenAction.startsWith('tab:')) {
+          screenState.tab = screenAction.slice(4);
+          redrawScreen();
+        } else if (screenAction !== 'screen') liveState.onActivate?.(screenAction);
+        return;
+      }
       const hit = pick(event);
       if (!hit) return;
       // Desde lejos, un click acerca la cámara; de cerca, interactúa.
@@ -249,9 +297,9 @@ export default function VaultRoom3D({
       } else if (hit.type === 'table') {
         if (currentView === 'table') liveState.onActivate?.('table');
         else liveState.onNavigate?.('table');
-      } else if (hit.type === 'terminal') {
-        if (currentView === 'terminal') liveState.onActivate?.('terminal');
-        else liveState.onNavigate?.('terminal');
+      } else if (hit.type === 'terminal' && currentView !== 'terminal') {
+        // De cerca se usa el menú de la pantalla.
+        liveState.onNavigate?.('terminal');
       }
     };
 
@@ -281,15 +329,33 @@ export default function VaultRoom3D({
     const screenCtx = terminal.canvas.getContext('2d');
     let screenTimer = 0;
     let cursorOn = true;
-    const redrawScreen = () => {
-      drawTerminalScreen(screenCtx, terminal.canvas.width, terminal.canvas.height, {
+    let screenTime = 0;
+    let lastSignedIn = liveState.signedIn;
+    function redrawScreen() {
+      if (liveState.signedIn !== lastSignedIn) {
+        // Al identificarse, la terminal pasa sola al listado del lote.
+        lastSignedIn = liveState.signedIn;
+        screenState.tab = lastSignedIn ? 'lot' : 'session';
+      }
+      const data = liveState.screenData ?? {};
+      screenState.hotspots = drawTerminalScreen(screenCtx, terminal.canvas.width, terminal.canvas.height, {
         signedIn: liveState.signedIn,
         operator: liveState.operator,
         cursor: cursorOn,
         influence: liveState.influence ?? 0,
+        tab: screenState.tab,
+        hover: screenState.hover,
+        time: screenTime,
+        cases: data.cases ?? [],
+        hiddenStatus: data.hiddenStatus ?? null,
+        log: data.log ?? [],
+        leak: data.leak ?? 0,
+        memory: data.memory ?? 0,
+        memoryTotal: data.memoryTotal ?? 9,
+        persistence: data.persistence ?? 'local',
       });
       terminal.screenTexture.needsUpdate = true;
-    };
+    }
     redrawScreen();
 
     const timer = new THREE.Timer();
@@ -322,10 +388,26 @@ export default function VaultRoom3D({
       // Fluorescente que parpadea más con la influencia.
       if (!reduce && Math.random() < 0.003 + influenceLevel * 0.008) {
         fluorescent.intensity = 0.8;
-        tube.material.emissiveIntensity = 0.2;
+        tubes.forEach((t) => (t.material.emissiveIntensity = 0.2));
       } else {
         fluorescent.intensity += (16 - fluorescent.intensity) * Math.min(1, dt * 10);
-        tube.material.emissiveIntensity += (2.2 - tube.material.emissiveIntensity) * Math.min(1, dt * 10);
+        tubes.forEach((t) => (t.material.emissiveIntensity += (2.2 - t.material.emissiveIntensity) * Math.min(1, dt * 10)));
+      }
+      // El tubo del frente está por quemarse: zumba y titila.
+      flickerTubes.forEach((t) => {
+        t.material.emissiveIntensity = reduce ? 0.8 : Math.random() < 0.08 ? 0.05 : 0.6 + Math.sin(elapsed * 40) * 0.25;
+      });
+      if (!reduce) {
+        table.beam.material.opacity = 0.085 + Math.sin(elapsed * 1.3) * 0.01;
+        terminal.towerLed.material.emissiveIntensity = Math.random() < 0.15 ? 3 : 0.4;
+        const dp = dust.geometry.attributes.position;
+        for (let i = 0; i < dustCount; i += 1) {
+          let y = dp.getY(i) + dt * 0.02 * (0.5 + ((i * 7) % 5) / 5);
+          if (y > 2.6) y = 0.9;
+          dp.setY(i, y);
+          dp.setX(i, dp.getX(i) + Math.sin(elapsed * 0.3 + i) * dt * 0.01);
+        }
+        dp.needsUpdate = true;
       }
       curseLight.intensity = influenceLevel * 0.9 * (reduce ? 1 : 0.85 + Math.random() * 0.15);
 
@@ -337,10 +419,22 @@ export default function VaultRoom3D({
         u.lid.rotation.x = -u.open * 1.95;
         const hoveredBox = hovered?.type === 'box' && hovered.code === u.code;
         u.body.position.y = hoveredBox && u.open < 0.05 ? 0.012 : 0;
+        // Brillo de la caja: luz que se filtra por la rendija, grietas encendidas y halo.
+        if (u.glow) {
+          const base = { pending: 1.1, revealed: 1.6, locked: 0.75, archived: 0.3 }[u.status] ?? 0.5;
+          const pulse = reduce ? 1 : 0.75 + Math.sin(elapsed * 2.2 + u.code.length) * 0.18 + Math.sin(elapsed * 7.3) * 0.07;
+          const hoverBoost = hovered?.type === 'box' && hovered.code === u.code ? 1.35 : 1;
+          const g = base * pulse * hoverBoost;
+          u.glow.light.intensity = g * (1.4 + u.open * 2.6) * (1 + influenceLevel * 0.25);
+          u.glow.seamMat.opacity = Math.min(1, g * 0.85 * (1 - u.open * 0.6));
+          u.glow.halo.material.opacity = Math.min(0.9, g * 0.38);
+          u.glow.wood.emissiveIntensity = g * 0.9;
+          if (u.glow.ofuda) u.glow.ofuda.emissiveIntensity = g * 0.25;
+        }
         // Brillo del dedo según el estado del expediente.
         const content = u.body.children.find((c) => c.userData?.aura);
         if (content) {
-          const glow = { pending: 0.5, locked: 0.18, archived: 0.05, revealed: 1.1 }[u.status] ?? 0.2;
+          const glow = { pending: 0.8, locked: 0.25, archived: 0.08, revealed: 1.3 }[u.status] ?? 0.2;
           const uniforms = content.userData.aura.material.uniforms;
           uniforms.uIntensity.value = glow * (0.4 + u.open);
           if (!reduce) uniforms.uTime.value = elapsed;
@@ -372,10 +466,11 @@ export default function VaultRoom3D({
       }
       particles.update(dt);
 
-      screenTimer += dt;
-      if (screenTimer > 0.55) {
+      screenTime += rawDt;
+      screenTimer += rawDt;
+      if (screenTimer > 0.25) {
         screenTimer = 0;
-        cursorOn = !cursorOn;
+        cursorOn = Math.floor(screenTime / 0.5) % 2 === 0;
         redrawScreen();
       }
 

@@ -338,6 +338,7 @@ h1, h2, h3, p { margin: 0; }
 .vault__nav > .label { width: 100%; }
 .vault__boxes { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; }
 .vault__help { width: 100%; font-family: var(--font-mono); font-size: 11px; color: #bfb6a0; }
+.vault__hint { font-family: var(--font-mono); font-size: 12px; opacity: 0.75; margin-top: -4px; }
 .vault__intro { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(13, 11, 9, 0.78); z-index: 5; }
 .vault__intro-card { width: min(720px, 100%); display: grid; gap: 18px; }
 .vault__intro-card .lead { color: #e7e0cd; }
