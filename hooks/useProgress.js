@@ -1,245 +1,334 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  createUserWithEmailAndPassword,
   GoogleAuthProvider,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
   signInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
-  signOut,
-} from "firebase/auth";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { chapters } from "@/data/chapters";
-import { getFirebaseServices, hasFirebaseConfig } from "@/lib/firebase";
+  signOut as firebaseSignOut,
+} from 'firebase/auth';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { CASES } from '@/data/cases';
+import { firebaseEnabled, getFirebase } from '@/lib/firebase';
 
-const STORAGE_KEY = "signal-88-progress";
-const VALID_CLUE_IDS = new Set(chapters.map((chapter) => chapter.clueId));
+const STORAGE_KEY = 'contencion:progress:v1';
+const LOCAL_OPERATOR_KEY = 'contencion:local-operator';
 
-function normalizeClues(value) {
-  if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter((clueId) => VALID_CLUE_IDS.has(clueId)))];
+export function createInitialProgress(endingsUnlocked = []) {
+  return {
+    cases: Object.fromEntries(
+      CASES.map((c) => [
+        c.id,
+        {
+          archived: false,
+          seals: Object.fromEntries(c.seals.map((s) => [s.id, { peeled: false, state: null, ripped: false }])),
+        },
+      ]),
+    ),
+    leak: 0,
+    memory: [],
+    log: [],
+    decisions: {},
+    ending: null,
+    endingsUnlocked,
+  };
 }
 
 function readLocal() {
   try {
-    return normalizeClues(
-      JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]"),
-    );
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw ? { ...createInitialProgress(), ...JSON.parse(raw) } : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
-function saveLocal(clues) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(clues));
+function writeLocal(progress) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-function getProvider(user) {
-  if (user.isAnonymous) return "anonymous";
-  return user.providerData[0]?.providerId || "password";
+function formatOperator(user, localName) {
+  if (user?.displayName) {
+    const parts = user.displayName.trim().split(/\s+/);
+    const last = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+    const initial = parts.length > 1 ? `${parts[0][0]}.` : '';
+    return `${last.toUpperCase()}${initial ? `, ${initial}` : ''}`;
+  }
+  if (user?.email) return user.email.split('@')[0].toUpperCase();
+  if (localName) return localName.toUpperCase();
+  return 'VENTANA N.º 0417';
 }
 
-async function saveUserProfile(user, db) {
-  const userRef = doc(db, "users", user.uid);
-  const snapshot = await getDoc(userRef);
-  const profile = {
-    userId: user.uid,
-    email: user.email || null,
-    displayName: user.displayName || null,
-    photoURL: user.photoURL || null,
-    isAnonymous: user.isAnonymous,
-    authProvider: getProvider(user),
-    lastLoginAt: serverTimestamp(),
-  };
-
-  if (!snapshot.exists()) profile.createdAt = serverTimestamp();
-  await setDoc(userRef, profile, { merge: true });
+function stamp() {
+  return new Date().toLocaleTimeString('es-AR', { hour12: false });
 }
 
-export function useProgress() {
-  const [clues, setClues] = useState([]);
-  const cluesRef = useRef([]);
-  const [ready, setReady] = useState(false);
-  const [syncState, setSyncState] = useState("local");
-  const [remoteUser, setRemoteUser] = useState(null);
-  const remoteUserRef = useRef(null);
-  const [authUser, setAuthUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState("");
+const ProgressContext = createContext(null);
 
+export function ProgressProvider({ children }) {
+  const [progress, setProgress] = useState(createInitialProgress);
+  const [hydrated, setHydrated] = useState(false);
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(!firebaseEnabled);
+  const [online, setOnline] = useState(true);
+  const [syncError, setSyncError] = useState(false);
+  const [localName, setLocalName] = useState(null);
+  const [settings, setSettings] = useState({ reduceEffects: false, sound: false });
+  const remoteLoaded = useRef(false);
+
+  // Progreso local y preferencias. Se leen después del montaje para que el HTML del servidor
+  // y el primer render del cliente coincidan (localStorage no existe en el servidor).
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    const localClues = readLocal();
-    cluesRef.current = localClues;
+    const local = readLocal();
+    if (local) setProgress(local);
+    try {
+      setLocalName(window.localStorage.getItem(LOCAL_OPERATOR_KEY));
+      const savedSettings = window.localStorage.getItem('contencion:settings');
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setSettings(savedSettings ? JSON.parse(savedSettings) : { reduceEffects: prefersReduced, sound: false });
+    } catch {
+      // El navegador bloqueó el almacenamiento: se sigue con los valores por defecto.
+    }
+    setOnline(navigator.onLine);
+    setHydrated(true);
 
-    const hydrateLocal = window.setTimeout(() => {
-      setClues(localClues);
-      saveLocal(localClues);
-      setReady(true);
-    }, 0);
-
-    if (!hasFirebaseConfig) return () => window.clearTimeout(hydrateLocal);
-
-    const { auth, db } = getFirebaseServices();
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        remoteUserRef.current = null;
-        setRemoteUser(null);
-        setAuthUser(null);
-        try {
-          setSyncState("connecting");
-          await signInAnonymously(auth);
-        } catch (error) {
-          console.warn("No se pudo iniciar la sesion anonima.", error);
-          setAuthError(error.code || "auth/anonymous-sign-in-failed");
-          setSyncState("local");
-        }
-        return;
-      }
-
-      try {
-        setSyncState("connecting");
-        await saveUserProfile(user, db);
-
-        const progressRef = doc(db, "progress", user.uid);
-        const snapshot = await getDoc(progressRef);
-        const remoteClues = normalizeClues(
-          snapshot.exists() ? snapshot.data().clues : [],
-        );
-        const mergedClues = normalizeClues([
-          ...cluesRef.current,
-          ...remoteClues,
-        ]);
-
-        cluesRef.current = mergedClues;
-        setClues(mergedClues);
-        saveLocal(mergedClues);
-        remoteUserRef.current = user;
-        setRemoteUser(user);
-        setAuthUser(user);
-        setAuthError("");
-        setSyncState("cloud");
-      } catch (error) {
-        console.warn("No se pudo sincronizar con Firebase.", error);
-        setAuthUser(user);
-        setAuthError(error.code || "firestore/sync-failed");
-        setSyncState("local");
-      }
-    });
-
+    const goOnline = () => setOnline(true);
+    const goOffline = () => setOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
     return () => {
-      window.clearTimeout(hydrateLocal);
-      unsubscribe();
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
     };
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
+  // Sesión de Firebase y descarga del progreso remoto.
   useEffect(() => {
-    if (!ready || !remoteUser) return;
-    const { db } = getFirebaseServices();
-    setDoc(
-      doc(db, "progress", remoteUser.uid),
-      {
-        userId: remoteUser.uid,
-        authProvider: getProvider(remoteUser),
-        clues,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    ).catch((error) => console.warn("No se pudo sincronizar el progreso.", error));
-  }, [clues, ready, remoteUser]);
-
-  const discover = useCallback((clueId) => {
-    if (!VALID_CLUE_IDS.has(clueId) || cluesRef.current.includes(clueId)) return;
-
-    const nextClues = [...cluesRef.current, clueId];
-    cluesRef.current = nextClues;
-    saveLocal(nextClues);
-    setClues(nextClues);
+    const fb = getFirebase();
+    if (!fb) return undefined;
+    return onAuthStateChanged(fb.auth, async (nextUser) => {
+      setUser(nextUser);
+      setAuthReady(true);
+      remoteLoaded.current = false;
+      if (!nextUser) return;
+      try {
+        await setDoc(
+          doc(fb.db, 'users', nextUser.uid),
+          {
+            userId: nextUser.uid,
+            email: nextUser.email ?? null,
+            displayName: nextUser.displayName ?? null,
+            photoURL: nextUser.photoURL ?? null,
+            isAnonymous: nextUser.isAnonymous,
+            authProvider: nextUser.providerData[0]?.providerId ?? 'anonymous',
+            lastLoginAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+        const snapshot = await getDoc(doc(fb.db, 'progress', nextUser.uid));
+        if (snapshot.exists()) {
+          const remote = snapshot.data();
+          delete remote.updatedAt;
+          delete remote.userId;
+          delete remote.authProvider;
+          setProgress({ ...createInitialProgress(), ...remote });
+        }
+        setSyncError(false);
+      } catch (error) {
+        console.error('[progress] no se pudo leer Firestore', error);
+        setSyncError(true);
+      } finally {
+        remoteLoaded.current = true;
+      }
+    });
   }, []);
 
-  const reset = useCallback(async () => {
-    cluesRef.current = [];
-    saveLocal([]);
-    setClues([]);
+  // Guardado: siempre en localStorage, y en Firestore cuando hay sesión.
+  useEffect(() => {
+    if (!hydrated) return undefined;
+    writeLocal(progress);
+    const fb = getFirebase();
+    if (!fb || !user || !remoteLoaded.current) return undefined;
+    const timer = setTimeout(async () => {
+      try {
+        await setDoc(
+          doc(fb.db, 'progress', user.uid),
+          {
+            ...progress,
+            userId: user.uid,
+            authProvider: user.providerData[0]?.providerId ?? 'anonymous',
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+        setSyncError(false);
+      } catch (error) {
+        console.error('[progress] no se pudo guardar en Firestore', error);
+        setSyncError(true);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [progress, user, hydrated]);
 
-    const user = remoteUserRef.current;
-    if (!user || !hasFirebaseConfig) return;
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem('contencion:settings', JSON.stringify(settings));
+    } catch {
+      // Sin almacenamiento: la preferencia dura hasta recargar.
+    }
+  }, [settings, hydrated]);
 
-    const { db } = getFirebaseServices();
-    await setDoc(
-      doc(db, "progress", user.uid),
-      {
-        userId: user.uid,
-        authProvider: getProvider(user),
-        clues: [],
-        updatedAt: serverTimestamp(),
+  // El indicador siempre informa el estado real, nunca el de la ficción.
+  let persistence = 'local';
+  if (!online) persistence = 'offline';
+  else if (user && !syncError) persistence = 'nube';
+
+  const progressRef = useRef(progress);
+  useEffect(() => {
+    progressRef.current = progress;
+  }, [progress]);
+
+  // Devuelve el resultado en el momento para dar feedback inmediato en la escena.
+  const peelSeal = useCallback((caseId, sealId, careful) => {
+    const prev = progressRef.current;
+    const data = CASES.find((c) => c.id === caseId);
+    const current = prev.cases[caseId];
+    if (!data || !current || current.seals[sealId]?.peeled) return null;
+    const expected = data.order.find((id) => !current.seals[id].peeled);
+    const outOfOrder = expected !== sealId;
+    const ripped = !careful;
+    const leakGain = (outOfOrder ? 1 : 0) + (ripped ? 1 : 0);
+    const reasons = [outOfOrder && 'fuera de orden', ripped && 'arrancado'].filter(Boolean).join(', ');
+    const next = {
+      ...prev,
+      leak: prev.leak + leakGain,
+      log: [...prev.log, { at: stamp(), text: `EXP-${caseId} · ${sealId} retirado${reasons ? ` (${reasons})` : ''}` }],
+      cases: {
+        ...prev.cases,
+        [caseId]: {
+          ...current,
+          seals: { ...current.seals, [sealId]: { ...current.seals[sealId], peeled: true, ripped } },
+        },
       },
-      { merge: true },
+    };
+    progressRef.current = next;
+    setProgress(next);
+    return { outOfOrder, ripped, leakGain };
+  }, []);
+
+  const markSeal = useCallback((caseId, sealId, state) => {
+    setProgress((prev) => {
+      const current = prev.cases[caseId];
+      if (!current?.seals[sealId]?.peeled) return prev;
+      return {
+        ...prev,
+        cases: {
+          ...prev.cases,
+          [caseId]: { ...current, seals: { ...current.seals, [sealId]: { ...current.seals[sealId], state } } },
+        },
+      };
+    });
+  }, []);
+
+  const findMemory = useCallback((memoryId) => {
+    setProgress((prev) =>
+      prev.memory.includes(memoryId)
+        ? prev
+        : { ...prev, memory: [...prev.memory, memoryId], log: [...prev.log, { at: stamp(), text: `Detalle registrado: ${memoryId}` }] },
     );
   }, []);
 
-  const signInWithGoogle = useCallback(async () => {
-    setAuthLoading(true);
-    setAuthError("");
-    try {
-      const { auth } = getFirebaseServices();
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (error) {
-      setAuthError(error.code || "auth/google-sign-in-failed");
-      throw error;
-    } finally {
-      setAuthLoading(false);
-    }
+  const archiveCase = useCallback((caseId) => {
+    setProgress((prev) => ({
+      ...prev,
+      log: [...prev.log, { at: stamp(), text: `EXP-${caseId} archivado` }],
+      cases: { ...prev.cases, [caseId]: { ...prev.cases[caseId], archived: true } },
+    }));
   }, []);
 
-  const submitEmail = useCallback(async ({ email, password, mode }) => {
-    setAuthLoading(true);
-    setAuthError("");
-    try {
-      const { auth } = getFirebaseServices();
-      const action =
-        mode === "signup"
-          ? createUserWithEmailAndPassword
-          : signInWithEmailAndPassword;
-      await action(auth, email, password);
-    } catch (error) {
-      setAuthError(error.code || "auth/email-sign-in-failed");
-      throw error;
-    } finally {
-      setAuthLoading(false);
-    }
+  const decide = useCallback((key, value) => {
+    setProgress((prev) => ({ ...prev, decisions: { ...prev.decisions, [key]: value } }));
   }, []);
 
-  const continueAsGuest = useCallback(async () => {
-    setAuthLoading(true);
-    setAuthError("");
-    try {
-      const { auth } = getFirebaseServices();
-      await signOut(auth);
-    } catch (error) {
-      setAuthError(error.code || "auth/sign-out-failed");
-      throw error;
-    } finally {
-      setAuthLoading(false);
-    }
+  const finish = useCallback((endingId) => {
+    setProgress((prev) => ({
+      ...prev,
+      ending: endingId,
+      endingsUnlocked: prev.endingsUnlocked.includes(endingId) ? prev.endingsUnlocked : [...prev.endingsUnlocked, endingId],
+    }));
   }, []);
 
-  const discovered = useMemo(() => new Set(clues), [clues]);
+  const resetRun = useCallback(() => {
+    setProgress((prev) => createInitialProgress(prev.endingsUnlocked));
+  }, []);
 
-  return {
-    authError,
-    authLoading,
-    authUser,
-    clearAuthError: () => setAuthError(""),
-    continueAsGuest,
-    discover,
-    discovered,
-    firebaseConfigured: hasFirebaseConfig,
-    ready,
-    reset,
-    signInWithGoogle,
-    submitEmail,
-    syncState,
+  const auth = useMemo(() => {
+    const fb = getFirebase();
+    return {
+      anonymous: () => signInAnonymously(fb.auth),
+      google: () => signInWithPopup(fb.auth, new GoogleAuthProvider()),
+      emailSignIn: (email, password) => signInWithEmailAndPassword(fb.auth, email, password),
+      emailSignUp: (email, password) => createUserWithEmailAndPassword(fb.auth, email, password),
+      signOut: () => firebaseSignOut(fb.auth),
+      enterLocal: (name) => {
+        const clean = name?.trim() || null;
+        setLocalName(clean);
+        try {
+          if (clean) window.localStorage.setItem(LOCAL_OPERATOR_KEY, clean);
+        } catch {
+          // Sin almacenamiento: el nombre dura hasta recargar.
+        }
+      },
+    };
+  }, []);
+
+  const archivedCount = CASES.filter((c) => progress.cases[c.id]?.archived).length;
+
+  const value = {
+    progress,
+    hydrated,
+    authReady,
+    user,
+    signedIn: Boolean(user) || (!firebaseEnabled && Boolean(localName)),
+    operator: formatOperator(user, localName),
+    persistence,
+    firebaseEnabled,
+    influence: archivedCount,
+    settings,
+    setSettings,
+    peelSeal,
+    markSeal,
+    findMemory,
+    archiveCase,
+    decide,
+    finish,
+    resetRun,
+    auth,
   };
+
+  return <ProgressContext.Provider value={value}>{children}</ProgressContext.Provider>;
+}
+
+export function useProgress() {
+  const value = useContext(ProgressContext);
+  if (!value) throw new Error('useProgress debe usarse dentro de ProgressProvider');
+  return value;
+}
+
+export function isCaseUnlocked(progress, caseId) {
+  if (caseId === '00') return CASES.every((c) => progress.cases[c.id]?.archived);
+  const index = CASES.findIndex((c) => c.id === caseId);
+  if (index <= 0) return index === 0;
+  return Boolean(progress.cases[CASES[index - 1].id]?.archived);
 }

@@ -1,264 +1,115 @@
-# TP6 — Experiencia web transmedia
+# Contención: Expediente de una Ventana
 
-> **Boilerplate:** SEÑAL 88
-> Next.js + Three.js + Firebase · JavaScript · App Router
+Experiencia web transmedia inspirada en *Jujutsu Kaisen*. TP6, Programación III (UMAI). Proyecto académico, sin fines comerciales.
 
-## Descripción
+**Premisa:** una Ventana del Colegio Jujutsu de Tokio abre los sellos de tres dedos de Sukuna y descubre lo que los superiores esconden en el Depósito B3.
 
-Desarrollar una experiencia web transmedia inmersiva inspirada en una película de culto, un videojuego, una obra audiovisual, una producción musical, una leyenda urbana o un universo narrativo original.
+## Sinopsis
 
-La experiencia debe proponer una navegación con hilo conductor. La persona usuaria deberá descubrir información, relacionar elementos o reconstruir una parte del relato mediante la exploración y la interacción.
+Marzo de 2018, tres meses antes del capítulo 1. La persona usuaria es una Ventana (personal de apoyo, sin técnica propia) asignada por una orden de mantenimiento al Depósito B3. Su tarea es controlar la integridad de los sellos de tres dedos de Sukuna. Al despegar cada ofuda, el residuo del sello muestra un flashback en paneles de manga sobre el pasado de ese dedo. Los flashbacks esconden detalles: un emblema de tres hojas, una caja que no figura en ningún registro, una Ventana anterior que fue dada de baja.
 
-El resultado no debe limitarse a una landing page temática. Tampoco se requiere desarrollar un videojuego. El objetivo es integrar narrativa, diseño de interacción, contenido multimedia, gráficos 3D y persistencia de datos en una aplicación web navegable.
+Al archivar los tres dedos aparece el EXP-00: la caja B3-11, que guardaba un cuarto dedo escondido por un clan. En ese momento la orden de mantenimiento desaparece del registro y la apertura de los sellos pasa a figurar como no autorizada.
 
-Si se utiliza una propiedad intelectual existente, el proyecto tendrá finalidad académica y deberá incluir las referencias y los créditos correspondientes.
+## Recorrido
 
-## Referencia del boilerplate
-
-SEÑAL 88 presenta el archivo de una transmisión perdida. La experiencia está organizada en tres fragmentos. Cada fragmento contiene un artefacto 3D interactivo y una evidencia. La recuperación de las evidencias habilita la navegación y permite acceder al desenlace.
-
-La propuesta narrativa y la identidad visual funcionan como demostración técnica. Deben ser reemplazadas o reformuladas para el proyecto entregado.
-
-## Posibles enfoques
-
-- Archivo de una transmisión interrumpida.
-- Escritorio o sistema operativo de un personaje.
-- Museo virtual cuyos objetos modifican el relato.
-- Investigación compuesta por documentos, audios y escenas 3D.
-- Enciclopedia de un mundo ficticio.
-- Sitio institucional de una organización perteneciente al universo narrativo.
-- Relato paralelo a una película o videojuego, situado antes, después o desde otro punto de vista.
-
-## Referencias de narrativa web interactiva
-
-Estas referencias permiten analizar proyectos en los que la interfaz, la navegación y las condiciones de acceso forman parte del relato.
-
-### Requiem for a Dream — sitio web de la película (2000)
-
-El sitio desarrollado por Hi-ReS! para la película de Darren Aronofsky fue concebido como una extensión narrativa que podía recorrerse antes, después o de manera independiente al film. La persona visitante ocupaba un lugar dentro del relato y atravesaba una estructura no lineal vinculada con sus personajes.
-
-La interfaz se degradaba progresivamente durante la navegación: aparecían errores, pérdida de control, desorientación y rechazo del sistema. Esta transformación convertía al propio sitio en una metáfora de la adicción y el deterioro presentes en la película. Es una referencia relevante para estudiar cómo el comportamiento de una interfaz puede comunicar un tema y no limitarse a presentar información.
-
-- [Registro en video del sitio](https://www.youtube.com/watch?v=SNuZjwX7Xxk&t=28s)
-- [Caso de estudio de sus creadores](https://alexandrajugovic.com/requiem)
-
-### A Journal of Insomnia (2013)
-
-Documental interactivo producido por el National Film Board of Canada. El proyecto reunía testimonios, imágenes y videos enviados por personas con insomnio y organizaba la experiencia alrededor de cuatro protagonistas.
-
-La disponibilidad del contenido dependía del horario: durante el día el sitio ofrecía funciones limitadas y, entre las 22:00 y las 03:00, habilitaba la experiencia completa. También solicitaba reservar una cita nocturna. De esta manera, el tiempo, la espera y el contexto real de acceso se incorporaban como recursos narrativos.
-
-El proyecto funciona como referencia para estudiar narrativa documental, participación de usuarios, contenido colectivo y experiencias cuyo estado depende de condiciones externas.
-
-- [Ficha y descripción en MIT Docubase](https://docubase.mit.edu/project/a-journal-of-insomnia/)
-- [Registro de funcionamiento](https://www.youtube.com/watch?v=ihpJDpSVEtw)
-- [Entrevista con sus realizadores](https://vimeo.com/57935529)
-
-## Requisitos obligatorios
-
-### Narrativa y experiencia
-
-- Una premisa definida en una oración.
-- Un recorrido compuesto por un mínimo de tres escenas, capítulos o estados.
-- Un inicio, una progresión y un cierre identificables.
-- Un mínimo de tres elementos coleccionables: pistas, fragmentos, objetos, testimonios o símbolos.
-- Desbloqueo de contenido o modificación del estado a partir de acciones de la persona usuaria.
-- Feedback visual o sonoro para las interacciones principales.
-- Una interfaz coherente con el universo narrativo seleccionado.
-- Diseño responsive.
-- Alternativas accesibles para las interacciones 3D necesarias para avanzar.
-
-### Next.js
-
-- Uso de App Router.
-- Organización de la interfaz mediante componentes.
-- Uso de rutas para representar escenas, capítulos o documentos.
-- Una ruta dinámica como mínimo.
-- Uso justificado de Server Components y Client Components.
-- Metadata específica del proyecto.
-- Estados de carga y de error donde corresponda.
-
-### Three.js
-
-- Una escena 3D integrada a la narrativa y a la interacción.
-- Configuración de escena, cámara y renderer.
-- Uso de geometrías, materiales e iluminación.
-- Animación mediante `requestAnimationFrame`.
-- Interacción mediante raycasting, puntero o scroll.
-- Adaptación del canvas al tamaño disponible.
-- Límite de pixel ratio para controlar el costo de renderizado.
-- Liberación de recursos al desmontar el componente.
-- Incorporación de un recurso desarrollado o adaptado para el proyecto: modelo, textura, geometría procedural, sistema de partículas o shader.
-
-El uso de React Three Fiber es opcional. La implementación inicial se realizará con Three.js directo para identificar los elementos fundamentales de una escena 3D.
-
-### Firebase
-
-- Firebase Authentication anónima, con Google y con email/contraseña.
-- Cloud Firestore para persistir progreso, decisiones o contenido.
-- Asociación de los datos con el usuario autenticado.
-- Reglas de seguridad que impidan el acceso a información de otros usuarios.
-- Indicación del estado de persistencia: remoto, local u offline.
-
-### Documentación
-
-- Concepto y sinopsis.
-- Referencias visuales y narrativas.
-- Mapa del recorrido o diagrama de navegación.
-- Decisiones técnicas principales.
-- Créditos de imágenes, modelos, tipografías, audio y otros recursos.
-- Instrucciones de instalación y configuración.
-- Variables de entorno requeridas.
-- Enlace al deploy público.
-
-## Entregables
-
-1. Repositorio con historial de desarrollo.
-2. Deploy público funcional.
-3. README con la documentación del proyecto.
-4. Mapa de navegación.
-5. Presentación y demostración navegada.
-6. Explicación técnica del código implementado.
-
-## Arquitectura del boilerplate
-
-```text
-app/
-  archivo/[chapter]/
-    page.js             # ruta dinámica de cada capítulo
-  globals.css           # sistema visual y responsive
-  layout.js             # layout y metadata general
-  page.js               # portada
-components/
-  Experience.js         # navegación, estado narrativo e interfaz
-  ThreeArtifact.js      # escena Three.js
-data/
-  chapters.js           # contenido y configuración de capítulos
-hooks/
-  useProgress.js        # persistencia local y remota
-lib/
-  firebase.js           # inicialización de Firebase
-firestore.rules         # reglas de acceso por usuario
+```
+/  ->  /acceso  ->  /indice  ->  /expediente/01  ->  /expediente/02  ->  /expediente/03  ->  /expediente/00  ->  /final/[ending]
+                     ^                                                                                         |
+                     +----------------------------- Nueva inspección (conserva los finales) <-------------------+
 ```
 
-Las responsabilidades se distribuyen de la siguiente manera:
+| Ruta | Contenido | Componentes |
+| --- | --- | --- |
+| `/` | Portada y premisa | Server |
+| `/acceso` | Login anónimo, Google y email/contraseña | Server + `AuthPanel` (cliente) |
+| `/indice` | Índice de expedientes, ajustes y registro de actividad | `CaseIndex` (cliente: depende del progreso) |
+| `/expediente/[id]` | Ruta dinámica: 01, 02, 03 y 00. Metadata por expediente | Server + `CaseFile` / `FinalArchive` (cliente) |
+| `/final/[ending]` | Ruta dinámica: `voto` y `ejecutado` | Server + `NewRunButton` (cliente) |
+| `/creditos` | Créditos y referencias | Server |
 
-- Next.js representa la estructura navegable y las rutas de la aplicación.
-- React administra la interfaz y el significado de las interacciones.
-- Three.js representa y anima el contenido tridimensional.
-- Firebase autentica al usuario y conserva el progreso.
+Estados de carga (`loading.js`, el canto del velo), error (`error.js`) y 404 (`not-found.js`) en tono institucional.
 
-La explicación detallada de la escena se encuentra en [GUIA-THREEJS.md](./GUIA-THREEJS.md).
+## Mecánica
 
-## Rutas incluidas
+- **Coleccionables:** los tres dedos (expedientes archivados) y nueve detalles ocultos en los flashbacks.
+- **Desbloqueo:** cada expediente se habilita al archivar el anterior; el EXP-00 aparece con los tres archivados.
+- **Despegar un sello:** mantener presionado el ofuda en la escena 3D. Soltar antes lo **arranca**. Los sellos se retiran en orden inverso al de colocación (el informe lo dice; en el EXP-03 hay que deducirlo con la luz rasante, que delata la tinta fresca, y con las pistas de cada residuo).
+- **Residuo en bóveda:** sube con cada sello arrancado o retirado fuera de orden. Intensifica el aura, las partículas y el parpadeo del fluorescente.
+- **Influencia (0 a 3):** dedos archivados. La interfaz se degrada en CSS: glitches, bordes rojos, manchas.
+- **Finales:**
+  - **Voto Vinculante** (verdadero): con al menos 6 de 9 detalles y residuo 3 o menos, Sukuna ofrece un pacto. El operador olvida todo y un dedo termina como amuleto en una secundaria de Sendai.
+  - **Ejecutado:** si no hay pacto o se rechaza. Un superior ligado al clan borra la autorización, los residuos en las manos del operador sirven de prueba y lo ejecutan para eliminar la evidencia.
 
-| Ruta | Contenido |
-| --- | --- |
-| `/` | Presentación e ingreso a la experiencia |
-| `/archivo/carrier` | Fragmento 01: La portadora |
-| `/archivo/witness` | Fragmento 02: El testigo |
-| `/archivo/echo` | Fragmento 03: El eco |
+## Three.js
 
-La ruta dinámica se implementa en `app/archivo/[chapter]/page.js`. El parámetro `chapter` se utiliza para seleccionar el contenido y generar metadata específica.
+`components/Reliquary3D.js` usa Three.js directo (sin React Three Fiber):
 
-## Puesta en marcha
+- Escena, `PerspectiveCamera` y `WebGLRenderer` con sombras y tone mapping.
+- Geometrías: dedo procedural con `LatheGeometry` deformada con ruido (`three/finger.js`), bandas ofuda (`CylinderGeometry` con `CanvasTexture`), bandeja, mesa y regla en escala real (1 unidad = 1 cm).
+- Luces: `SpotLight` cenital de 3200 K, `HemisphereLight`, `PointLight` roja del aura y luz rasante de inspección.
+- Recursos propios: shader de aura (`three/auraShader.js`), sistema de partículas con shader (`three/particles.js`) y texturas generadas en canvas.
+- Interacción: raycasting para hover y mantener presionado, arrastre para girar, rueda y botones para zoom.
+- `requestAnimationFrame`, `ResizeObserver` para adaptar el canvas, `setPixelRatio(Math.min(devicePixelRatio, 2))` y `dispose()` de geometrías, materiales, texturas y renderer al desmontar.
 
-Requiere Node.js 20 o una versión posterior compatible con Next.js 16.
+## Accesibilidad
+
+- **Controles sin 3D:** cada sello se puede retirar con un botón, y la luz rasante tiene su equivalente en texto.
+- Flashbacks en DOM, con foco al abrir y cierre con Escape; los detalles ocultos son botones.
+- "Reducir efectos" desactiva glitches y animaciones (se activa solo si el sistema pide movimiento reducido). Sonido apagado por defecto.
+
+## Firebase
+
+- Authentication: anónima, Google y email/contraseña.
+- Firestore: `users/{uid}` (perfil) y `progress/{uid}` con `userId`, `cases`, `leak`, `memory`, `log`, `decisions`, `ending`, `endingsUnlocked` y `updatedAt`.
+- `firestore.rules` solo deja leer y escribir el documento propio, y exige `userId == request.auth.uid`.
+- El indicador del header muestra siempre el estado real: **ARCHIVO CENTRAL** (nube), **REGISTRO LOCAL** (localStorage) o **SIN ENLACE** (offline). Sin variables de entorno, todo funciona en modo local.
+
+## Instalación
+
+Requiere Node.js 20 o superior.
 
 ```bash
 npm install
+cp .env.example .env.local   # completar con la Web App de Firebase
 npm run dev
 ```
 
-Abrir [http://localhost:3000](http://localhost:3000).
-
-Sin variables de entorno, la experiencia utiliza `localStorage` y muestra el estado `LOCAL`.
-
-## Configuración de Firebase
-
 1. Crear un proyecto y una Web App en Firebase Console.
-2. Habilitar en Authentication los proveedores **Anonymous**, **Google** y **Email/Password**.
-3. Crear una base **Cloud Firestore**.
-4. Copiar `.env.example` como `.env.local`.
-5. Completar las variables de entorno.
-6. Publicar las reglas incluidas en `firestore.rules`.
-7. Reiniciar el servidor de desarrollo.
+2. Habilitar **Anonymous**, **Google** y **Email/Password** en Authentication.
+3. Crear la base de Cloud Firestore y publicar `firestore.rules`.
+4. Completar `.env.local` y reiniciar el servidor.
 
-El indicador superior cambia de `LOCAL` a `NUBE` cuando la autenticación y la conexión se realizan correctamente.
+### Variables de entorno
 
-Las variables con prefijo `NEXT_PUBLIC_` forman parte del bundle del cliente. La seguridad del acceso a los datos depende de Firebase Authentication y de las reglas de Firestore.
+| Variable | Uso |
+| --- | --- |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Configuración de la Web App |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Dominio de Authentication |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Proyecto |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Bucket |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Sender ID |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | App ID |
 
-## Colección de usuarios
+## Estructura
 
-El boilerplate reutiliza la colección `users`. Cada documento utiliza el UID de Firebase Authentication como identificador:
-
-```js
-// users/{uid}
-{
-  userId: "uid-de-firebase-auth",
-  email: "persona@example.com",
-  displayName: "Nombre visible",
-  photoURL: null,
-  isAnonymous: false,
-  authProvider: "google.com",
-  createdAt: serverTimestamp(),
-  lastLoginAt: serverTimestamp()
-}
+```
+app/                    rutas (App Router), layout, loading, error, not-found
+components/             Terminal, CaseIndex, CaseFile, Reliquary3D, MangaFlashback, FinalArchive, AuthPanel
+three/                  finger, ofuda, auraShader, particles, scenery
+data/                   cases.js (expedientes, sellos, flashbacks), endings.js
+hooks/useProgress.js    estado narrativo y persistencia local/remota
+lib/                    firebase.js, sound.js (Web Audio)
+firestore.rules
 ```
 
-La escritura utiliza `{ merge: true }`, por lo que conserva los campos que ya existan en el documento. Para reutilizar perfiles anteriores, sus documentos deben estar identificados con el mismo UID utilizado por Firebase Authentication. Una colección `users` no crea credenciales: las cuentas también deben existir en Authentication.
+## Créditos
 
-Si el proyecto ya posee reglas de Firestore, los bloques de `firestore.rules` deben integrarse con las reglas existentes. Publicar el archivo completo sin revisar podría reemplazar otras reglas del proyecto.
+- *Jujutsu Kaisen* © Gege Akutami / Shueisha. No se usa arte oficial.
+- Tipografías: Zen Kaku Gothic New, IBM Plex Mono, Yuji Syuku (Google Fonts, SIL OFL).
+- Three.js (MIT), Next.js (MIT), Firebase JS SDK (Apache 2.0).
+- Sonido generado con Web Audio API.
+- Referencias: sitio de *Requiem for a Dream* (Hi-ReS!, 2000), *A Journal of Insomnia* (NFB, 2013).
 
-## Modelo de datos inicial
+## Deploy
 
-```js
-// progress/{uid}
-{
-  userId: "uid-del-usuario-anonimo",
-  authProvider: "anonymous",
-  clues: ["tone", "coordinate", "message"],
-  updatedAt: serverTimestamp()
-}
-```
-
-El UID se utiliza dos veces de manera intencional:
-
-- como identificador del documento `progress/{uid}`;
-- como valor del campo `userId` para hacer visible la relación en Firestore.
-
-Las reglas verifican que ambos valores coincidan con `request.auth.uid`. El usuario anónimo correspondiente puede consultarse en Firebase Authentication.
-
-Una experiencia ramificada puede extender el documento:
-
-```js
-{
-  clues: [],
-  currentChapter: "carrier",
-  decisions: { answeredCall: true },
-  ending: null
-}
-```
-
-## Posibles extensiones
-
-- Carga de modelos `.glb` con `GLTFLoader`.
-- Audio espacial mediante Web Audio API.
-- Materiales personalizados mediante shaders GLSL.
-- Animaciones vinculadas al scroll.
-- Documentos narrativos mediante rutas dinámicas adicionales.
-- Finales alternativos basados en decisiones persistidas.
-- Contenido administrable desde Firestore.
-
-## Scripts
-
-```bash
-npm run dev      # servidor de desarrollo
-npm run lint     # análisis estático
-npm run build    # build de producción
-npm run start    # ejecución del build
-```
-
----
-
-**Cátedra Programación III — UMAI**
+Pendiente.

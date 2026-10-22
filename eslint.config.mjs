@@ -1,7 +1,8 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
+import nextVitals from 'eslint-config-next/core-web-vitals';
 
-export default defineConfig([
+const config = [
   ...nextVitals,
-  globalIgnores([".next/**", "out/**", "build/**"]),
-]);
+  { ignores: ['.next/**', 'node_modules/**'] },
+];
+
+export default config;

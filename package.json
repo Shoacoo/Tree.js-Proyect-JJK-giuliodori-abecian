@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "firebase": "12.18.0",
@@ -23,5 +23,9 @@
     "@grpc/grpc-js": "1.14.5",
     "@firebase/app": "0.16.2",
     "@firebase/app-compat": "0.5.18"
+  },
+  "description": "Contención: Expediente de una Ventana. Experiencia web transmedia (TP6, Programación III, UMAI).",
+  "engines": {
+    "node": ">=20"
   }
 }
