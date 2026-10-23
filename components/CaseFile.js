@@ -8,6 +8,8 @@ import MangaFlashback from '@/components/MangaFlashback';
 import Terminal from '@/components/Terminal';
 import { SEAL_STATES, SETTING, getCase, nextCaseId } from '@/data/cases';
 import { isCaseUnlocked, useProgress } from '@/hooks/useProgress';
+import { useQuality } from '@/hooks/useQuality';
+import { downgradeAutoQuality } from '@/three/quality';
 import { playPeel } from '@/lib/sound';
 
 // La escena solo existe en el navegador: se carga sin SSR y con su propio estado de carga.
@@ -26,6 +28,7 @@ export default function CaseFile({ caseId }) {
   const data = getCase(caseId);
   const router = useRouter();
   const { progress, hydrated, settings, influence, operator, peelSeal, markSeal, findMemory, archiveCase } = useProgress();
+  const { pref: qualityPref, quality } = useQuality();
   const apiRef = useRef(null);
   const [hovered, setHovered] = useState(null);
   const [hint, setHint] = useState('idle');
@@ -123,7 +126,11 @@ export default function CaseFile({ caseId }) {
 
         <section className="case__stage" aria-label="Mesa de inspección">
           <div className="viewport">
+            {quality ? (
             <Reliquary3D
+              key={quality}
+              quality={quality}
+              onSlow={qualityPref === 'auto' ? downgradeAutoQuality : undefined}
               caseData={data}
               sealState={sealState}
               leak={progress.leak}
@@ -135,6 +142,7 @@ export default function CaseFile({ caseId }) {
               onPeel={handlePeel}
               onHint={handleHint}
             />
+            ) : null}
             <div className="viewport__tag viewport__tag--left">
               <span className="rec" aria-hidden="true" /> CAM-B3-02 · MESA DE INSPECCIÓN
             </div>

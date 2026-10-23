@@ -7,6 +7,7 @@ import Terminal from '@/components/Terminal';
 import { CASES, MEMORY_TOTAL, SETTING } from '@/data/cases';
 import { ENDINGS } from '@/data/endings';
 import { isCaseUnlocked, useProgress } from '@/hooks/useProgress';
+import { qualityLabel, useQuality } from '@/hooks/useQuality';
 import { startHum, stopHum } from '@/lib/sound';
 
 function Toggle({ label, checked, onChange }) {
@@ -23,6 +24,7 @@ export default function CaseIndex() {
   const router = useRouter();
   const { progress, hydrated, authReady, signedIn, operator, influence, settings, setSettings, auth, user, resetRun } =
     useProgress();
+  const { pref: qualityPref, quality, cycle: cycleQuality } = useQuality();
 
   useEffect(() => {
     if (hydrated && authReady && !signedIn) router.replace('/acceso');
@@ -67,6 +69,12 @@ export default function CaseIndex() {
               onChange={(v) => setSettings((s) => ({ ...s, reduceEffects: v }))}
             />
             <Toggle label="Sonido" checked={settings.sound} onChange={(v) => setSettings((s) => ({ ...s, sound: v }))} />
+            <div className="toggle">
+              <span>Calidad gráfica</span>
+              <button type="button" className="link" onClick={cycleQuality}>
+                {qualityLabel(qualityPref, quality)}
+              </button>
+            </div>
           </div>
           <div className="index__block">
             <Link href="/" className="link">Volver a la bóveda</Link>

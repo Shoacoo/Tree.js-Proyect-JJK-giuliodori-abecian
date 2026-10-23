@@ -7,11 +7,11 @@ import { createFinger } from '@/three/finger';
 import { applyFingerModel, fitBandToProfile } from '@/three/fingerModel';
 import { createLooseOfuda, createSealBand } from '@/three/ofuda';
 import { CursedParticles } from '@/three/particles';
+import { QUALITY_PRESETS, createFrameMonitor, isSoftwareRenderer } from '@/three/quality';
 import { createScenery } from '@/three/scenery';
 
 const HOLD_MS = 900; // mantener presionado para despegar con cuidado
 const RIP_MIN_MS = 160; // soltar después de esto y antes de HOLD_MS arranca el sello
-const MAX_PIXEL_RATIO = 2;
 
 function disposeObject(root) {
   root.traverse((object) => {
@@ -36,6 +36,8 @@ export default function Reliquary3D({
   leak,
   influence,
   reduceEffects,
+  quality = 'alta',
+  onSlow,
   lamp,
   apiRef,
   onHover,
@@ -55,6 +57,7 @@ export default function Reliquary3D({
     live.current.onHover = onHover;
     live.current.onPeel = onPeel;
     live.current.onHint = onHint;
+    live.current.onSlow = onSlow;
     live.current.sync?.();
   });
 
@@ -64,12 +67,14 @@ export default function Reliquary3D({
     const length = caseData.length;
 
     // Renderer, escena y cámara.
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
+    // La calidad se elige al montar; si cambia, CaseFile vuelve a montar la escena.
+    const preset = QUALITY_PRESETS[quality] ?? QUALITY_PRESETS.alta;
+    const renderer = new THREE.WebGLRenderer({ antialias: preset.antialias, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, preset.pixelRatio));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = preset.shadows;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.domElement.style.touchAction = 'none';
     renderer.domElement.setAttribute('aria-hidden', 'true');
@@ -132,7 +137,8 @@ export default function Reliquary3D({
       if (profile) bands.forEach((band) => fitBandToProfile(band, profile));
     });
 
-    const particles = new CursedParticles(reduceEffects ? 220 : 700);
+    const particleCount = quality === 'baja' ? 250 : 700;
+    const particles = new CursedParticles(reduceEffects ? Math.min(220, particleCount) : particleCount);
     particles.material.uniforms.uPixelRatio.value = renderer.getPixelRatio();
     scene.add(particles.points);
 
@@ -290,6 +296,9 @@ export default function Reliquary3D({
     let ambientEmit = 0;
     const tmp = new THREE.Vector3();
 
+    const monitor = quality === 'alta' ? createFrameMonitor(() => liveState.onSlow?.()) : () => {};
+    if (quality === 'alta' && isSoftwareRenderer(renderer)) setTimeout(() => liveState.onSlow?.(), 0);
+
     const tick = () => {
       frame = requestAnimationFrame(tick);
       timer.update();
@@ -364,6 +373,7 @@ export default function Reliquary3D({
       if (!drag && !reduce) relic.position.y = -0.3 + Math.sin(elapsed * 1.3) * 0.02 * intensity;
 
       renderer.render(scene, camera);
+      monitor(dt);
     };
     tick();
 

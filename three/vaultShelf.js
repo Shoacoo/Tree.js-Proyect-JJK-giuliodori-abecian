@@ -259,10 +259,8 @@ function createBox(code, content, { special = false, hidden = false } = {}) {
 
   // Brillo del dedo: luz interior, rendija luminosa y halo.
   let glow = null;
+  // La luz roja es una sola para todas las cajas (la ubica VaultRoom3D en la caja abierta).
   if (cursed) {
-    const light = new THREE.PointLight(0xff3a22, 0, 1.8, 2);
-    light.position.set(0, 0.02, 0.05);
-    body.add(light);
     const seamMat = new THREE.MeshBasicMaterial({
       map: getSeamTexture(),
       color: 0xffffff,
@@ -293,7 +291,7 @@ function createBox(code, content, { special = false, hidden = false } = {}) {
     halo.position.set(0, h / 2 - 0.02, d / 2 + 0.05);
     halo.renderOrder = 4;
     body.add(halo);
-    glow = { light, seamMat, halo, wood, ofuda: ofudaMat };
+    glow = { seamMat, halo, wood, ofuda: ofudaMat };
   }
 
   if (content) {
@@ -348,14 +346,28 @@ function createMiscContent(seed) {
 // Dedo en miniatura dentro de su caja, con aura propia.
 function createBoxedFinger(caseData) {
   const group = new THREE.Group();
-  const { group: finger, skin } = createFinger(caseData.length);
+  // Dentro de la caja cerrada el dedo apenas se ve: versión liviana y sin sombra.
+  // El modelo detallado se carga recién la primera vez que se abre la caja.
+  const { group: finger, skin } = createFinger(caseData.length, { steps: 48, radial: 24 });
+  finger.traverse((o) => {
+    o.castShadow = false;
+  });
   group.add(finger);
   const aura = new THREE.Mesh(skin.geometry, createAuraMaterial());
   group.add(aura);
-  applyFingerModel(finger, aura, caseData.length);
+  let modelRequested = false;
+  const loadModel = () => {
+    if (modelRequested) return null;
+    modelRequested = true;
+    return applyFingerModel(finger, aura, caseData.length).then(() => {
+      finger.traverse((o) => {
+        o.castShadow = false;
+      });
+    });
+  };
   group.scale.setScalar(0.022);
   group.rotation.y = 0.25;
-  group.userData = { aura };
+  group.userData = { aura, loadModel };
   return group;
 }
 

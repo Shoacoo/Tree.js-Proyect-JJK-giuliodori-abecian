@@ -39,8 +39,7 @@ function valueNoise(x, y) {
 
 // Geometría procedural: torno (LatheGeometry) + arrugas + curvatura.
 // El resultado queda acostado sobre el eje X, centrado en el origen.
-export function createFingerGeometry(length) {
-  const steps = 140;
+export function createFingerGeometry(length, { steps = 140, radial = 72 } = {}) {
   const profile = [];
   for (let i = 0; i <= steps; i += 1) {
     const t = i / steps;
@@ -48,7 +47,7 @@ export function createFingerGeometry(length) {
   }
   profile[0].x = 0.001;
 
-  const geometry = new THREE.LatheGeometry(profile, 72);
+  const geometry = new THREE.LatheGeometry(profile, radial);
   const position = geometry.attributes.position;
   const vertex = new THREE.Vector3();
 
@@ -103,13 +102,14 @@ export function createSkinTextures() {
   return { bump };
 }
 
-export function createFinger(length) {
+// detail: segmentos del torno; los dedos lejanos (en las cajas) usan menos.
+export function createFinger(length, detail) {
   const group = new THREE.Group();
   group.name = 'finger';
   const { bump } = createSkinTextures();
 
   const skin = new THREE.Mesh(
-    createFingerGeometry(length),
+    createFingerGeometry(length, detail),
     new THREE.MeshStandardMaterial({
       color: 0x5a4030,
       roughness: 0.92,

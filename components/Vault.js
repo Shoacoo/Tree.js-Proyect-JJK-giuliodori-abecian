@@ -6,7 +6,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { PersistenceBadge } from '@/components/Terminal';
 import { CASES, HIDDEN_BOX, MEMORY_TOTAL, VAULT_BOXES, getCaseByBox } from '@/data/cases';
 import { isCaseUnlocked, useProgress } from '@/hooks/useProgress';
+import { qualityLabel, useQuality } from '@/hooks/useQuality';
 import { startHum, stopHum } from '@/lib/sound';
+import { downgradeAutoQuality } from '@/three/quality';
 
 const VaultRoom3D = dynamic(() => import('@/components/VaultRoom3D'), {
   ssr: false,
@@ -44,6 +46,7 @@ function describeBox(code, status) {
 export default function Vault({ intro }) {
   const router = useRouter();
   const { progress, hydrated, signedIn, operator, influence, settings, setSettings, persistence } = useProgress();
+  const { pref: qualityPref, quality, cycle: cycleQuality } = useQuality();
   const [entered, setEntered] = useState(false);
   const [view, setView] = useState('overview');
   const [openBox, setOpenBox] = useState(null);
@@ -164,7 +167,11 @@ export default function Vault({ intro }) {
   return (
     <main className="vault" data-influence={hydrated ? influence : 0} data-reduce={settings.reduceEffects ? 'true' : 'false'}>
       <h1 className="sr-only">Depósito B3, Sala de Catalogación</h1>
+      {quality ? (
       <VaultRoom3D
+        key={quality}
+        quality={quality}
+        onSlow={qualityPref === 'auto' ? downgradeAutoQuality : undefined}
         view={view}
         boxStatus={boxStatus}
         openBox={openBox}
@@ -180,6 +187,7 @@ export default function Vault({ intro }) {
         onActivate={activate}
         onHover={setHovered}
       />
+      ) : null}
 
       <header className="vault__hud">
         <div>
@@ -203,6 +211,14 @@ export default function Vault({ intro }) {
             onClick={() => setSettings((s) => ({ ...s, reduceEffects: !s.reduceEffects }))}
           >
             Reducir efectos {settings.reduceEffects ? 'sí' : 'no'}
+          </button>
+          <button
+            type="button"
+            className="vault__chip"
+            onClick={cycleQuality}
+            title="Calidad gráfica: auto se ajusta según el rendimiento de la PC"
+          >
+            Calidad {qualityLabel(qualityPref, quality)}
           </button>
         </div>
       </header>

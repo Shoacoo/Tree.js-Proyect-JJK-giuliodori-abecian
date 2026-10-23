@@ -4,10 +4,11 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { CASES, HIDDEN_BOX, VAULT_BOXES, getCaseByBox } from '@/data/cases';
 import { CursedParticles } from '@/three/particles';
+import { loadFingerModel } from '@/three/fingerModel';
+import { bakeStatic, pruneSmallCasters } from '@/three/optimize';
 import { glowTexture } from '@/three/proctex';
+import { QUALITY_PRESETS, createFrameMonitor, isSoftwareRenderer } from '@/three/quality';
 import { SCREEN, createRoom, createShelf, createTable, createTableRelic, createTerminal, drawTerminalScreen } from '@/three/vault';
-
-const MAX_PIXEL_RATIO = 2;
 
 // Puntos de vista de la sala: posición de la cámara, punto al que mira y cuánto se puede girar.
 export const VIEWS = {
@@ -46,6 +47,8 @@ export default function VaultRoom3D({
   signedIn,
   operator,
   reduceEffects,
+  quality = 'alta',
+  onSlow,
   screenData,
   onNavigate,
   onBoxClick,
@@ -56,7 +59,7 @@ export default function VaultRoom3D({
   const live = useRef({});
 
   useEffect(() => {
-    Object.assign(live.current, { view, boxStatus, openBox, influence, signedIn, operator, reduceEffects, screenData, onNavigate, onBoxClick, onActivate, onHover });
+    Object.assign(live.current, { view, boxStatus, openBox, influence, signedIn, operator, reduceEffects, screenData, onNavigate, onBoxClick, onActivate, onHover, onSlow });
     live.current.sync?.();
   });
 
@@ -68,12 +71,14 @@ export default function VaultRoom3D({
     const mount = mountRef.current;
     const liveState = live.current;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
+    // La calidad se elige al montar; si cambia, Vault vuelve a montar la escena.
+    const preset = QUALITY_PRESETS[quality] ?? QUALITY_PRESETS.alta;
+    const renderer = new THREE.WebGLRenderer({ antialias: preset.antialias, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, preset.pixelRatio));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = preset.shadows;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.domElement.style.touchAction = 'none';
     renderer.domElement.setAttribute('aria-hidden', 'true');
@@ -91,6 +96,9 @@ export default function VaultRoom3D({
     fluorescent.position.set(0, 2.95, -1.6);
     fluorescent.castShadow = true;
     fluorescent.shadow.mapSize.set(512, 512);
+    // La sala no se mueve: la sombra del tubo (6 pasadas, una por cara del cubo) se calcula
+    // solo cuando algo cambia, no en cada cuadro.
+    fluorescent.shadow.autoUpdate = false;
     scene.add(fluorescent);
     // Luces bajas sobre cada estantería para leer las etiquetas.
     [-3.1, 3.1].forEach((x) => {
@@ -102,6 +110,10 @@ export default function VaultRoom3D({
     const curseLight = new THREE.PointLight(0xc7352a, 0, 6, 2);
     curseLight.position.set(0, 1.6, -3);
     scene.add(curseLight);
+    // Una sola luz roja para las cajas con dedos: se ubica en la que está abierta o señalada.
+    // (Antes había una por caja: cada luz suma costo en todos los píxeles de la escena.)
+    const boxLight = new THREE.PointLight(0xff3a22, 0, 1.8, 2);
+    scene.add(boxLight);
 
     const { group: roomGroup, tubes, flickerTubes } = createRoom();
     scene.add(roomGroup);
@@ -116,11 +128,29 @@ export default function VaultRoom3D({
 
     const table = createTable();
     scene.add(table.group);
+    table.lamp.shadow.autoUpdate = false;
     const terminal = createTerminal();
     scene.add(terminal.group);
+    if (!preset.extraLights) terminal.glow.removeFromParent();
+
+    // Menos llamadas de dibujo: se unen las piezas fijas que comparten material y se apagan
+    // las sombras de las piezas chicas.
+    pruneSmallCasters(scene);
+    bakeStatic(roomGroup, [...tubes, ...flickerTubes]);
+    bakeStatic(shelves.left.group, [...shelves.left.boxes, shelves.left.outline]);
+    bakeStatic(shelves.right.group, [...shelves.right.boxes, shelves.right.outline]);
+    bakeStatic(table.group, [table.slot, table.beam, table.lamp, table.lamp.target]);
+    bakeStatic(terminal.group, [terminal.screen, terminal.towerLed]);
+
+    // Sombras: se recalculan solo cuando algo se mueve.
+    let shadowsDirty = true;
+    const markShadows = () => {
+      shadowsDirty = true;
+    };
+    loadFingerModel().then(markShadows);
 
     // Polvo suspendido que se ve en el cono de la lámpara.
-    const dustCount = reduceEffects ? 120 : 420;
+    const dustCount = reduceEffects ? Math.min(120, preset.dust) : preset.dust;
     const dustPositions = new Float32Array(dustCount * 3);
     for (let i = 0; i < dustCount; i += 1) {
       dustPositions[i * 3] = (Math.random() - 0.5) * 3.2;
@@ -135,7 +165,7 @@ export default function VaultRoom3D({
     );
     scene.add(dust);
 
-    const particles = new CursedParticles(reduceEffects ? 150 : 500);
+    const particles = new CursedParticles(reduceEffects ? Math.min(150, preset.particles) : preset.particles);
     particles.material.uniforms.uPixelRatio.value = renderer.getPixelRatio();
     particles.material.uniforms.uSize.value = 7;
     scene.add(particles.points);
@@ -152,6 +182,8 @@ export default function VaultRoom3D({
       if (!data) return;
       tableRelic = createTableRelic(data, states?.[caseId]?.seals);
       table.slot.add(tableRelic);
+      markShadows();
+      loadFingerModel().then(() => setTimeout(markShadows, 0));
     };
     liveState.setTable(tableCaseId, sealStates);
 
@@ -189,7 +221,13 @@ export default function VaultRoom3D({
         }
         box.userData.target = liveState.openBox === code ? 1 : 0;
         box.userData.status = s;
+        // El modelo detallado del dedo se carga al abrir la caja por primera vez.
+        if (box.userData.target === 1) {
+          const content = box.userData.body.children.find((c) => c.userData?.loadModel);
+          content?.userData.loadModel()?.then(markShadows);
+        }
       });
+      markShadows();
       applyView(liveState.view);
     };
     liveState.sync = sync;
@@ -361,6 +399,12 @@ export default function VaultRoom3D({
     const timer = new THREE.Timer();
     let frame = 0;
     let emit = 0;
+    let lampShadowTimer = 0;
+    // Modo automático: si la PC no llega a ~30 cuadros por segundo, Vault baja la calidad.
+    const monitor =
+      quality === 'alta' && liveState.onSlow ? createFrameMonitor(() => liveState.onSlow?.()) : () => {};
+    if (quality === 'alta' && isSoftwareRenderer(renderer)) setTimeout(() => liveState.onSlow?.(), 0);
+
 
     const tick = () => {
       frame = requestAnimationFrame(tick);
@@ -412,8 +456,12 @@ export default function VaultRoom3D({
       curseLight.intensity = influenceLevel * 0.9 * (reduce ? 1 : 0.85 + Math.random() * 0.15);
 
       // Cajas: se deslizan hacia afuera y se abre la tapa.
+      let glowBox = null;
+      let glowLevel = 0;
+      let boxesMoving = false;
       boxes.forEach((box) => {
         const u = box.userData;
+        if (Math.abs(u.target - u.open) > 0.001) boxesMoving = true;
         u.open += (u.target - u.open) * Math.min(1, rawDt * (reduce ? 20 : 5));
         u.body.position.z = u.open * 0.34;
         u.lid.rotation.x = -u.open * 1.95;
@@ -425,7 +473,15 @@ export default function VaultRoom3D({
           const pulse = reduce ? 1 : 0.75 + Math.sin(elapsed * 2.2 + u.code.length) * 0.18 + Math.sin(elapsed * 7.3) * 0.07;
           const hoverBoost = hovered?.type === 'box' && hovered.code === u.code ? 1.35 : 1;
           const g = base * pulse * hoverBoost;
-          u.glow.light.intensity = g * (1.4 + u.open * 2.6) * (1 + influenceLevel * 0.25);
+          const level = g * (1.4 + u.open * 2.6) * (1 + influenceLevel * 0.25);
+          // La luz compartida va a la caja más abierta; si no hay, a la señalada y, si tampoco,
+          // a la que espera inspección (así la sala sigue indicando por dónde seguir).
+          const waiting = u.status === 'pending' || u.status === 'revealed' ? 0.5 : 0;
+          const weight = u.open * 10 + (hoverBoost > 1 ? 1 : 0) + waiting;
+          if (box.visible && weight > 0 && (!glowBox || weight > glowBox.weight)) {
+            glowBox = { box, weight };
+            glowLevel = level;
+          }
           u.glow.seamMat.opacity = Math.min(1, g * 0.85 * (1 - u.open * 0.6));
           u.glow.halo.material.opacity = Math.min(0.9, g * 0.38);
           u.glow.wood.emissiveIntensity = g * 0.9;
@@ -446,11 +502,34 @@ export default function VaultRoom3D({
         }
       });
 
+      if (glowBox) {
+        glowBox.box.userData.body.getWorldPosition(boxLight.position);
+        boxLight.position.y += 0.02;
+        boxLight.position.z += 0.05;
+        boxLight.intensity = glowLevel;
+      } else {
+        boxLight.intensity = 0;
+      }
+      if (boxesMoving) markShadows();
+
       if (tableRelic) {
         const uniforms = tableRelic.userData.aura.material.uniforms;
         uniforms.uIntensity.value = 0.3 + influenceLevel * 0.15;
         if (!reduce) uniforms.uTime.value = elapsed;
-        if (!reduce) tableRelic.rotation.y = Math.sin(elapsed * 0.3) * 0.08;
+        if (!reduce) {
+          tableRelic.rotation.y = Math.sin(elapsed * 0.3) * 0.08;
+          // El vaivén es lento: la sombra de la lámpara se actualiza 8 veces por segundo.
+          lampShadowTimer += rawDt;
+          if (lampShadowTimer > 0.125) {
+            lampShadowTimer = 0;
+            table.lamp.shadow.needsUpdate = true;
+          }
+        }
+      }
+      if (shadowsDirty) {
+        shadowsDirty = false;
+        fluorescent.shadow.needsUpdate = true;
+        table.lamp.shadow.needsUpdate = true;
       }
 
       // Energía que se escapa de las cajas con dedos.
@@ -466,15 +545,19 @@ export default function VaultRoom3D({
       }
       particles.update(dt);
 
+      // La pantalla (1024x768) se vuelve a subir a la GPU solo cuando parpadea el cursor,
+      // y de lejos con menos frecuencia.
       screenTime += rawDt;
       screenTimer += rawDt;
-      if (screenTimer > 0.25) {
+      const screenPeriod = currentView === 'terminal' ? 0.5 : 1;
+      if (screenTimer > screenPeriod) {
         screenTimer = 0;
-        cursorOn = Math.floor(screenTime / 0.5) % 2 === 0;
+        cursorOn = Math.floor(screenTime / screenPeriod) % 2 === 0;
         redrawScreen();
       }
 
       renderer.render(scene, camera);
+      monitor(rawDt);
     };
     tick();
 
