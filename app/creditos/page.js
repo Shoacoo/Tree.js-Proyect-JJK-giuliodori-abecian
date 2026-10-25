@@ -9,7 +9,8 @@ export default function CreditsPage() {
       <h1 className="display">Créditos y referencias</h1>
       <p className="lead">
         Proyecto académico para Programación III (UMAI), sin fines comerciales. Jujutsu Kaisen es obra de Gege Akutami,
-        publicada por Shueisha. No se usa arte oficial: el dedo, los sellos y la sala son geometría y texturas procedurales.
+        publicada por Shueisha. No se usa arte oficial: los sellos y la sala son geometría y texturas procedurales, y los
+        modelos 3D de terceros se detallan abajo con su autor y licencia.
       </p>
       <h2 className="title">Recursos</h2>
       <ul>
@@ -25,6 +26,28 @@ export default function CreditsPage() {
           ), licencia{' '}
           <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/" target="_blank" rel="noreferrer">CC BY-NC-ND 4.0</a>. Se usa sin
           modificaciones.
+        </li>
+        <li>
+          Santuario de la expansión de dominio:{' '}
+          <a href="https://sketchfab.com/3d-models/malevolent-shrine-jjk-cc-df9a59de87944a65b8d77847d1008c4d" target="_blank" rel="noreferrer">
+            “Malevolent_shrine jjk cc”
+          </a>{' '}
+          de Tyo155q (
+          <a href="https://sketchfab.com/Tyo155q" target="_blank" rel="noreferrer">@Tyo155q</a>
+          ), licencia{' '}
+          <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>. Adaptado para la web:
+          texturas reducidas a 1024 px en JPEG y sin atributos de malla que no se usan.
+        </li>
+        <li>
+          Sukuna en la expansión de dominio:{' '}
+          <a href="https://sketchfab.com/3d-models/sukuna-free-fire-skin-81a53ae2b8604c40843bda9490cef39e" target="_blank" rel="noreferrer">
+            “Sukuna Free Fire Skin”
+          </a>{' '}
+          de rocklee.ff (
+          <a href="https://sketchfab.com/rocklee.ff123" target="_blank" rel="noreferrer">@rocklee.ff123</a>
+          ), licencia{' '}
+          <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>. Adaptado: materiales
+          con iluminación, brazos en otra pose y la cabeza animada en la escena.
         </li>
         <li>Sonido: generado en el navegador con Web Audio API.</li>
         <li>Inscripción de los ofuda: 急急如律令, fórmula tradicional del onmyōdō.</li>

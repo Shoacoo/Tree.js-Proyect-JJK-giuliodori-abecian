@@ -672,8 +672,10 @@ export function createRoom() {
   );
   exitSign.position.set(-ROOM.width / 2 + 0.03, 2.45, 1.8);
   group.add(exitSign);
-  const exitDoor = mesh(new THREE.BoxGeometry(0.06, 2.1, 1.0), new THREE.MeshStandardMaterial({ ...paintedMetalTextures(79, { color: [70, 74, 70] }), color: 0xffffff, metalness: 0.5, roughness: 0.6 }));
+  const exitDoor = mesh(new THREE.BoxGeometry(0.06, 2.1, 1.0), new THREE.MeshStandardMaterial({ ...paintedMetalTextures(79, { color: [70, 74, 70] }), color: 0xffffff, metalness: 0.5, roughness: 0.6, emissive: 0x2bd36f, emissiveIntensity: 0 }));
   exitDoor.position.set(-ROOM.width / 2 + 0.03, 1.05, 1.8);
+  // La salida cierra la sesión del operador (Vault pide confirmación).
+  exitDoor.userData.type = 'exit';
   group.add(exitDoor);
 
   // Escalera junto a la estantería izquierda.
@@ -703,6 +705,7 @@ export function createRoom() {
     group,
     tubes: [...main.tubes, ...shelfFixtures.flatMap((f) => f.tubes)],
     flickerTubes: front.tubes,
+    exitDoor,
   };
 }
 

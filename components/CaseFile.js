@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import MangaFlashback from '@/components/MangaFlashback';
+import SealStatePicker from '@/components/SealStatePicker';
 import Terminal from '@/components/Terminal';
-import { SEAL_STATES, SETTING, getCase, nextCaseId } from '@/data/cases';
+import { SETTING, getCase, nextCaseId } from '@/data/cases';
 import { isCaseUnlocked, useProgress } from '@/hooks/useProgress';
 import { useQuality } from '@/hooks/useQuality';
 import { downgradeAutoQuality } from '@/three/quality';
@@ -68,6 +69,16 @@ export default function CaseFile({ caseId }) {
     },
     [caseId, peelSeal, settings.sound],
   );
+
+  const handleMark = (seal, state) => {
+    const result = markSeal(caseId, seal.id, state);
+    if (!result) return;
+    setFeedback(
+      result.mismatch
+        ? { tone: 'bad', text: `El residuo no coincide: el ${seal.label.toLowerCase()} estaba ${result.actual.toLowerCase()}. Quedó mal resellado y se filtró energía.` }
+        : { tone: 'ok', text: `${seal.label} registrado como ${state.toLowerCase()}.` },
+    );
+  };
 
   const handleHover = useCallback((id) => setHovered(id), []);
   const handleHint = useCallback((value) => setHint(value), []);
@@ -242,18 +253,7 @@ export default function CaseFile({ caseId }) {
             </div>
           )}
 
-          {activeSeal ? (
-            <fieldset className="seal-state">
-              <legend className="label">ESTADO DEL {activeSeal.label.toUpperCase()}</legend>
-              <div className="segmented">
-                {SEAL_STATES.map((state) => (
-                  <button key={state} type="button" onClick={() => markSeal(caseId, activeSeal.id, state)}>
-                    {state}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-          ) : null}
+          {activeSeal ? <SealStatePicker seal={activeSeal} onMark={(state) => handleMark(activeSeal, state)} /> : null}
 
           <label className="label observations">
             OBSERVACIONES

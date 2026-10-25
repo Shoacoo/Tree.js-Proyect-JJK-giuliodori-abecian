@@ -15,30 +15,93 @@ function lathe(points, segments = 24) {
   return new THREE.LatheGeometry(points.map(([x, y]) => new THREE.Vector2(x, y)), segments);
 }
 
-// Cuaderno abierto con anotaciones de la inspección.
+// Papel que se vuelve a escribir cuando cambia lo que hay en la mesa.
+function writablePaper(seed, w, h, options) {
+  const paper = paperCanvas(seed, w, h, options);
+  const blank = paper.ctx.getImageData(0, 0, w, h);
+  const texture = paper.toTexture();
+  return {
+    ctx: paper.ctx,
+    texture,
+    clear: () => paper.ctx.putImageData(blank, 0, 0),
+    commit: () => {
+      texture.needsUpdate = true;
+    },
+  };
+}
+
+// Corta un texto en renglones que entran en el ancho dado.
+function wrapLines(ctx, text, maxWidth) {
+  const lines = [];
+  let line = '';
+  text.split(/\s+/).forEach((word) => {
+    const next = line ? `${line} ${word}` : word;
+    if (ctx.measureText(next).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else line = next;
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+
+// Caja invisible para apuntar con el puntero a un objeto chico de la mesa.
+function hitBox(w, h, d, userData) {
+  const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ visible: false }));
+  box.position.y = h / 2;
+  box.userData = userData;
+  return box;
+}
+
+// Libreta abierta del expediente que está sobre la mesa (izquierda).
 function createNotebook() {
   const group = new THREE.Group();
-  const pages = paperCanvas(811, 512, 360, { tint: [226, 220, 200], age: 0.3 });
+  const pages = writablePaper(811, 512, 360, { tint: [226, 220, 200], age: 0.3 });
   const { ctx } = pages;
-  ctx.strokeStyle = 'rgba(70,90,130,0.35)';
-  ctx.lineWidth = 1;
-  for (let y = 40; y < 360; y += 18) {
-    ctx.beginPath();
-    ctx.moveTo(10, y);
-    ctx.lineTo(502, y);
-    ctx.stroke();
-  }
-  ctx.fillStyle = 'rgba(40,40,40,0.5)';
-  ctx.fillRect(254, 0, 4, 360);
-  ctx.fillStyle = 'rgba(23,20,15,0.8)';
-  ctx.font = font('mono', 15, 500);
-  ['15/03 23:31 · ingreso B3', 'OM-2018-0311 (verbal)', 'Lote: 3 objetos', 'Sellos: orden inverso', '', 'B3-11: figura vacía', '¿Por qué hay marca', 'en el polvo?'].forEach((line, i) => ctx.fillText(line, 20, 56 + i * 18));
-  ctx.font = font('brush', 22);
-  ctx.fillText('no mirar la uña', 290, 110);
-  ctx.strokeStyle = 'rgba(158,31,23,0.7)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(284, 86, 170, 34);
-  const pageMat = new THREE.MeshStandardMaterial({ map: pages.toTexture(), roughness: 0.95 });
+  const ruled = () => {
+    ctx.strokeStyle = 'rgba(70,90,130,0.35)';
+    ctx.lineWidth = 1;
+    for (let y = 40; y < 360; y += 18) {
+      ctx.beginPath();
+      ctx.moveTo(10, y);
+      ctx.lineTo(502, y);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(40,40,40,0.5)';
+    ctx.fillRect(254, 0, 4, 360);
+  };
+  const redraw = (caseData) => {
+    pages.clear();
+    ruled();
+    ctx.fillStyle = 'rgba(23,20,15,0.85)';
+    if (!caseData) {
+      ctx.font = font('mono', 15, 500);
+      ['15/03 23:31 · ingreso B3', 'OM-2018-0311 (verbal)', 'Lote: 3 objetos', 'Sellos: orden inverso', '', 'B3-11: figura vacía', '¿Por qué hay marca', 'en el polvo?'].forEach((line, i) => ctx.fillText(line, 20, 56 + i * 18));
+      ctx.font = font('brush', 22);
+      ctx.fillText('no mirar la uña', 290, 110);
+      ctx.strokeStyle = 'rgba(158,31,23,0.7)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(284, 86, 170, 34);
+    } else {
+      ctx.font = font('mono', 26, 700);
+      ctx.fillText(caseData.code, 20, 58);
+      ctx.font = font('mono', 13, 500);
+      [caseData.place, `Recup. ${caseData.recovered}`, caseData.team, `${String(caseData.length).replace('.', ',')} cm · ${caseData.weight}`, `${caseData.seals.length} sellos ofuda`, `Últ. control ${caseData.lastControl}`].forEach((line, i) => ctx.fillText(line, 20, 92 + i * 18));
+      ctx.fillStyle = 'rgba(158,31,23,0.85)';
+      ctx.font = font('mono', 12, 700);
+      ctx.fillText('CADENA DE CUSTODIA', 20, 218);
+      ctx.fillStyle = 'rgba(23,20,15,0.8)';
+      ctx.font = font('mono', 12, 400);
+      caseData.custody.forEach(([date, who], i) => ctx.fillText(`${date}  ${who}`, 20, 236 + i * 18));
+      ctx.font = font('mono', 12, 700);
+      ctx.fillText('INFORME', 272, 58);
+      ctx.font = font('mono', 12, 400);
+      wrapLines(ctx, caseData.report, 224).slice(0, 16).forEach((line, i) => ctx.fillText(line, 272, 76 + i * 18));
+    }
+    pages.commit();
+  };
+  redraw(null);
+  const pageMat = new THREE.MeshStandardMaterial({ map: pages.texture, roughness: 0.95 });
   const g = new THREE.PlaneGeometry(0.3, 0.21, 16, 1);
   const pos = g.attributes.position;
   for (let i = 0; i < pos.count; i += 1) pos.setZ(i, Math.abs(pos.getX(i)) ** 0.5 * 0.012);
@@ -62,34 +125,104 @@ function createNotebook() {
   pencil.rotation.set(0, 0.4, Math.PI / 2);
   pencil.position.set(0.04, 0.016, 0.05);
   group.add(pencil);
-  return group;
+  group.add(hitBox(0.32, 0.04, 0.23, { type: 'notebook', side: 'case' }));
+  return { group, redraw };
 }
 
-// Planilla en una tabla con clip.
+// Planilla de control de integridad en una tabla con clip (derecha): un renglón por sello.
 function createClipboard() {
   const group = new THREE.Group();
   const board = mesh(new THREE.BoxGeometry(0.23, 0.006, 0.32), new THREE.MeshStandardMaterial({ color: 0x5a3e26, roughness: 0.7 }));
   group.add(board);
-  const form = paperCanvas(823, 360, 500, { tint: [230, 226, 214], age: 0.25 });
+  const form = writablePaper(823, 360, 500, { tint: [230, 226, 214], age: 0.25 });
   const { ctx } = form;
-  ctx.fillStyle = '#17140f';
-  ctx.font = font('mono', 18, 600);
-  ctx.fillText('CONTROL DE INTEGRIDAD', 20, 70);
-  ctx.font = font('mono', 13, 400);
-  ['Form. B3-07', 'Operador: V. N.° 0417', 'Fecha: 15/03/2018', 'Objeto: ____________', 'Sellos: [ ] [ ] [ ] [ ]', 'Residuo: __________', 'Firma: ____________'].forEach((line, i) => ctx.fillText(line, 20, 110 + i * 34));
-  ctx.strokeStyle = 'rgba(158,31,23,0.8)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(300, 440, 30, 0, Math.PI * 2);
-  ctx.stroke();
-  const sheet = mesh(new THREE.PlaneGeometry(0.21, 0.29), new THREE.MeshStandardMaterial({ map: form.toTexture(), roughness: 0.95 }));
+  let drawn = null;
+  const redraw = (caseData, seals = {}, operator = 'V. N.° 0417') => {
+    const signature = JSON.stringify([caseData?.id, seals, operator]);
+    if (signature === drawn) return;
+    drawn = signature;
+    form.clear();
+    ctx.fillStyle = '#17140f';
+    ctx.font = font('mono', 18, 600);
+    ctx.fillText('CONTROL DE INTEGRIDAD', 20, 56);
+    ctx.font = font('mono', 13, 400);
+    ['Form. B3-07', `Operador: ${operator}`, 'Fecha: 15/03/2018', `Objeto: ${caseData ? `${caseData.code} · ${caseData.box}` : '____________'}`].forEach((line, i) => ctx.fillText(line, 20, 84 + i * 22));
+    ctx.font = font('mono', 12, 700);
+    ctx.fillText('SELLO', 20, 186);
+    ctx.fillText('ESTADO', 220, 186);
+    ctx.font = font('mono', 13, 400);
+    (caseData?.seals ?? []).forEach((seal, i) => {
+      const s = seals[seal.id] ?? {};
+      const y = 212 + i * 30;
+      ctx.fillStyle = '#17140f';
+      ctx.fillText(seal.label.replace('Sello ', ''), 20, y);
+      ctx.fillStyle = s.state ? '#17140f' : 'rgba(23,20,15,0.45)';
+      ctx.fillText(s.state ? s.state : s.peeled ? 'retirado · ?' : '__________', 220, y);
+      if (s.ripped) {
+        ctx.fillStyle = 'rgba(158,31,23,0.9)';
+        ctx.fillText('arrancado', 220, y + 13);
+      }
+    });
+    // Referencia impresa al pie: cómo se reconoce cada estado.
+    ctx.fillStyle = 'rgba(23,20,15,0.7)';
+    ctx.font = font('mono', 11, 700);
+    ctx.fillText('REFERENCIA', 20, 362);
+    ctx.font = font('mono', 11, 400);
+    ['Intacto: papel parejo, borde entero', 'Fisurado: grietas finas, canto comido', 'Dañado: partido, quemado, faltantes'].forEach((line, i) => ctx.fillText(line, 20, 380 + i * 16));
+    ctx.strokeStyle = 'rgba(158,31,23,0.8)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(300, 450, 30, 0, Math.PI * 2);
+    ctx.stroke();
+    form.commit();
+  };
+  redraw(null);
+  const sheet = mesh(new THREE.PlaneGeometry(0.21, 0.29), new THREE.MeshStandardMaterial({ map: form.texture, roughness: 0.95 }));
   sheet.rotation.x = -Math.PI / 2;
   sheet.position.set(0, 0.0035, 0.01);
   group.add(sheet);
   const clip = mesh(new THREE.BoxGeometry(0.09, 0.012, 0.03), steel);
   clip.position.set(0, 0.008, -0.145);
   group.add(clip);
-  return group;
+  group.add(hitBox(0.24, 0.04, 0.33, { type: 'notebook', side: 'control' }));
+  return { group, redraw };
+}
+
+// Carpetas de los expedientes ya archivados, apiladas (izquierda, al fondo).
+function createArchiveStack() {
+  const group = new THREE.Group();
+  const manila = new THREE.MeshStandardMaterial({ color: 0xb59a64, roughness: 0.9 });
+  const label = writablePaper(829, 256, 96, { tint: [236, 230, 212], age: 0.2 });
+  const labelMat = new THREE.MeshStandardMaterial({ map: label.texture, roughness: 0.9 });
+  const folders = [0, 1, 2].map((i) => {
+    const folder = mesh(new THREE.BoxGeometry(0.22, 0.012, 0.3), manila, { cast: true });
+    folder.position.set((i % 2) * 0.008, 0.006 + i * 0.013, i * 0.006);
+    folder.rotation.y = (i - 1) * 0.05;
+    folder.visible = false;
+    group.add(folder);
+    return folder;
+  });
+  const tag = mesh(new THREE.PlaneGeometry(0.12, 0.045), labelMat);
+  tag.rotation.x = -Math.PI / 2;
+  tag.visible = false;
+  group.add(tag);
+  let drawn = -1;
+  const redraw = (codes) => {
+    if (codes.length === drawn) return;
+    drawn = codes.length;
+    folders.forEach((f, i) => (f.visible = i < codes.length));
+    tag.visible = codes.length > 0;
+    tag.position.set(0, 0.013 + codes.length * 0.013, 0.04);
+    label.clear();
+    label.ctx.fillStyle = '#17140f';
+    label.ctx.font = font('mono', 22, 700);
+    label.ctx.fillText(`ARCHIVADOS ${codes.length}`, 16, 40);
+    label.ctx.font = font('mono', 16, 400);
+    label.ctx.fillText(codes.join(' · '), 16, 72);
+    label.commit();
+  };
+  group.add(hitBox(0.24, 0.06, 0.32, { type: 'notebook', side: 'archive' }));
+  return { group, redraw };
 }
 
 // Lupa de mano.
@@ -316,15 +449,20 @@ export function createTable() {
   );
   group.add(gold);
 
-  // Útiles sobre la mesa.
+  // Útiles sobre la mesa. A los costados de la bandeja: la libreta del expediente y las
+  // carpetas archivadas a la izquierda, la planilla de control a la derecha.
   const notebook = createNotebook();
-  notebook.position.set(-0.55, 0.894, 0.16);
-  notebook.rotation.y = 0.15;
-  group.add(notebook);
+  notebook.group.position.set(-0.58, 0.894, 0.12);
+  notebook.group.rotation.y = 0.12;
+  group.add(notebook.group);
+  const archive = createArchiveStack();
+  archive.group.position.set(-0.62, 0.89, -0.24);
+  archive.group.rotation.y = -0.1;
+  group.add(archive.group);
   const clipboard = createClipboard();
-  clipboard.position.set(0.62, 0.894, 0.18);
-  clipboard.rotation.y = -0.2;
-  group.add(clipboard);
+  clipboard.group.position.set(0.6, 0.894, 0.14);
+  clipboard.group.rotation.y = -0.15;
+  group.add(clipboard.group);
   const tools = createTools();
   tools.position.set(-0.1, 0.894, 0.25);
   group.add(tools);
@@ -333,7 +471,7 @@ export function createTable() {
   loupe.rotation.z = 0.6;
   group.add(loupe);
   const cup = createTeacup();
-  cup.position.set(-0.78, 0.89, -0.3);
+  cup.position.set(-0.84, 0.89, 0.38);
   group.add(cup);
   const stack = createOfudaStack();
   stack.position.set(-0.4, 0.894, -0.22);
@@ -413,28 +551,46 @@ export function createTable() {
   slot.name = 'table-slot';
   group.add(slot);
 
-  return { group, slot, lamp, beam };
+  return { group, slot, lamp, beam, notebook, clipboard, archive, loupe, armLamp };
 }
 
-// Relicario sobre la mesa: el dedo elegido con sus sellos, en escala real.
-export function createTableRelic(caseData, sealState) {
+// Escala del relicario de la mesa: 1 unidad (1 cm del dedo) = 3 cm en la sala, para que
+// los sellos se puedan leer de cerca.
+export const RELIC_SCALE = 0.03;
+
+// Relicario sobre la mesa: el dedo elegido con todos sus sellos.
+// Quien lo usa oculta los sellos ya retirados.
+export function createTableRelic(caseData) {
   const group = new THREE.Group();
   const { group: finger, skin } = createFinger(caseData.length);
   group.add(finger);
-  const bands = [];
+  const bands = new Map();
   caseData.seals.forEach((seal) => {
-    if (sealState?.[seal.id]?.peeled) return;
     const band = createSealBand(seal, caseData.length);
+    band.userData.type = 'seal';
+    band.userData.ink = seal.ink;
     group.add(band);
-    bands.push(band);
+    bands.set(seal.id, band);
   });
   const aura = new THREE.Mesh(skin.geometry, createAuraMaterial());
   group.add(aura);
   applyFingerModel(finger, aura, caseData.length).then((profile) => {
     if (profile) bands.forEach((band) => fitBandToProfile(band, profile));
   });
-  group.scale.setScalar(0.03);
+  group.scale.setScalar(RELIC_SCALE);
   group.position.y = 0.025;
-  group.userData = { aura };
+  group.userData = { aura, bands, finger };
   return group;
+}
+
+// Altura del terciopelo de la bandeja en el espacio del hueco del relicario (slot), con un
+// margen mínimo para que el dedo no lo roce.
+export const TRAY_FLOOR = 0.907 - 0.935 + 0.002;
+
+// Ofuda retirado, apoyado detrás de la bandeja. Las posiciones están en unidades del
+// relicario (el grupo que lo contiene usa RELIC_SCALE).
+export function placeLooseOfuda(ofuda, index) {
+  ofuda.rotation.set(-Math.PI / 2, 0, (index % 2 ? 0.07 : -0.05));
+  ofuda.position.set(-4 + index * 1.9, -1.25 + index * 0.06, -7.2 + (index % 2) * 0.3);
+  return ofuda;
 }

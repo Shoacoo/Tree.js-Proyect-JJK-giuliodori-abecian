@@ -5,8 +5,8 @@ const DETECTED_KEY = 'contencion:quality-detected';
 const CHANGE_EVENT = 'contencion:quality';
 
 export const QUALITY_PRESETS = {
-  alta: { pixelRatio: 1.5, antialias: true, shadows: true, extraLights: true, dust: 420, particles: 500 },
-  baja: { pixelRatio: 1, antialias: false, shadows: false, extraLights: false, dust: 100, particles: 150 },
+  alta: { pixelRatio: 1.5, antialias: true, shadows: true, extraLights: true, dust: 420, particles: 500, miasma: 2 },
+  baja: { pixelRatio: 1, antialias: false, shadows: false, extraLights: false, dust: 100, particles: 150, miasma: 1 },
 };
 
 function read(key) {

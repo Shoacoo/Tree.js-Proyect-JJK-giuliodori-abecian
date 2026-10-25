@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import DomainExpansion from '@/components/DomainExpansion';
 import Terminal from '@/components/Terminal';
 import { CASES, MEMORY_TOTAL, SETTING } from '@/data/cases';
 import { canOfferVow } from '@/data/endings';
@@ -14,8 +15,14 @@ export default function FinalArchive() {
   const router = useRouter();
   const { progress, hydrated, operator, settings, decide, finish } = useProgress();
   const [phase, setPhase] = useState('reading');
+  const [domain, setDomain] = useState(false);
   const unlocked = isCaseUnlocked(progress, '00');
   const vow = canOfferVow(progress);
+
+  // Si Sukuna va a ofrecer el Voto, los modelos del dominio se descargan mientras se lee.
+  useEffect(() => {
+    if (hydrated && unlocked && vow) import('@/three/domainModels').then((m) => m.loadDomainModels());
+  }, [hydrated, unlocked, vow]);
 
   useEffect(() => {
     if (hydrated && !unlocked) router.replace('/indice');
@@ -28,11 +35,14 @@ export default function FinalArchive() {
     return () => clearTimeout(timer);
   }, [phase, settings.reduceEffects]);
 
+  // El final queda registrado al decidir. Aceptar el Voto abre antes la expansión de dominio.
   const end = (endingId, decision) => {
     decide('vow', decision);
     finish(endingId);
-    router.push(`/final/${endingId}`);
+    if (endingId === 'voto') setDomain(true);
+    else router.push(`/final/${endingId}`);
   };
+  const leaveDomain = useCallback(() => router.push('/final/voto'), [router]);
 
   return (
     <Terminal footer={<span className="red">EXP-00 · ORIGEN DEL REGISTRO: DESCONOCIDO</span>}>
@@ -121,6 +131,7 @@ export default function FinalArchive() {
           <Link href="/indice" className="link">Volver al índice</Link>
         </aside>
       </div>
+      {domain ? <DomainExpansion reduceEffects={settings.reduceEffects} onDone={leaveDomain} /> : null}
     </Terminal>
   );
 }

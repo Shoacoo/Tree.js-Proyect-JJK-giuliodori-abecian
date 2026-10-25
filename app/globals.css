@@ -351,3 +351,69 @@ h1, h2, h3, p { margin: 0; }
   .vault__nav { left: 16px; right: 16px; bottom: 16px; }
   .vault__hud-right .vault__chip { min-height: 32px; padding: 4px 8px; }
 }
+.vault__confirm { width: min(440px, 100%); }
+.vault__chip--exit { border-color: #2bd36f; color: #9df0bd; }
+/* Velo de corrupción: bordes oscuros teñidos de rojo. VaultRoom3D ajusta la opacidad según el avance. */
+.vault-canvas__veil { position: absolute; inset: 0; pointer-events: none; opacity: 0; will-change: opacity; background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 40%, rgba(70, 6, 3, 0.45) 78%, rgba(14, 1, 1, 0.92) 100%), linear-gradient(to top, rgba(60, 4, 2, 0.35), transparent 45%); }
+
+/* Mesa de inspección dentro de la bóveda */
+.vault__panel--inspect { top: 84px; bottom: clamp(16px, 3vw, 32px); align-content: end; pointer-events: none; }
+.vault__panel--inspect > * { pointer-events: auto; }
+.inspect { max-height: calc(100dvh - 84px - clamp(16px, 3vw, 32px)); overflow: auto; overscroll-behavior: contain; }
+.inspect__hint { font-family: var(--font-mono); font-size: 12px; opacity: 0.8; }
+.inspect__seal { display: grid; gap: 2px; padding: 8px 10px; background: var(--tinta); color: var(--papel); font-family: var(--font-mono); font-size: 12px; border-left: 3px solid var(--brasa); }
+.inspect__tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.inspect__tools button { min-width: 38px; min-height: 36px; padding: 4px 10px; background: transparent; border: 1px solid var(--tinta); cursor: pointer; font-family: var(--font-mono); font-size: 13px; }
+.inspect__tools button:hover { background: rgba(23, 20, 15, 0.08); }
+.inspect__tools button.is-on { background: #1d2a44; color: #cfdcff; border-color: #1d2a44; }
+.inspect__seals { display: flex; flex-wrap: wrap; gap: 6px; }
+.inspect__seals > .label { width: 100%; }
+.inspect .archive { display: grid; gap: 8px; }
+.inspect .btn { min-height: 38px; padding: 8px 12px; font-size: 14px; }
+
+/* Planilla de estado del sello */
+.seal-state__ask { font-size: 14px; }
+.seal-state__img { width: 100%; aspect-ratio: 4 / 1; object-fit: cover; display: block; background: repeating-linear-gradient(45deg, #3a2a20 0 6px, #2a1d16 6px 12px); border: 1px solid var(--linea); }
+.seal-state__options { display: grid; gap: 6px; }
+.seal-state__option { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid var(--tinta); background: transparent; cursor: pointer; }
+.seal-state__option span { font-size: 12px; color: var(--gris); }
+.seal-state__option:hover, .seal-state__option:focus-visible { background: var(--tinta); color: var(--papel); }
+.seal-state__option:hover span, .seal-state__option:focus-visible span { color: #cfc6b0; }
+
+/* Libretas de la mesa */
+.notes-drawer { position: absolute; left: clamp(16px, 3vw, 32px); top: 84px; bottom: clamp(16px, 3vw, 32px); width: min(460px, calc(100% - 32px)); display: grid; grid-template-rows: auto 1fr; background: var(--papel); color: var(--tinta); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55); z-index: 4; animation: panel-in 0.3s ease-out; }
+.notes-drawer__head { display: flex; justify-content: space-between; align-items: stretch; gap: 8px; border-bottom: 1px solid var(--linea); }
+.notes-drawer__tabs { display: flex; flex-wrap: wrap; }
+.notes-drawer__tabs button { padding: 10px 12px; border: 0; border-bottom: 3px solid transparent; background: transparent; cursor: pointer; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+.notes-drawer__tabs button.is-active { border-bottom-color: var(--sello); font-weight: 700; }
+.notes-drawer__close { margin: 6px; padding: 6px 10px; border: 1px solid var(--tinta); background: transparent; cursor: pointer; font-size: 13px; }
+.notes-drawer__body { overflow: auto; padding: 16px 18px; display: grid; gap: 12px; align-content: start; overscroll-behavior: contain; }
+.notes-drawer__code { font-family: var(--font-mono); font-size: 28px; }
+.notes-drawer__guide { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; }
+.notes-drawer__folder { border: 1px solid var(--linea); padding: 8px 10px; display: grid; gap: 10px; }
+.notes-drawer__folder summary { cursor: pointer; font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+.vault__flashback { z-index: 6; overflow: auto; }
+
+@media (max-width: 760px) {
+  .vault[data-view='inspect'] .vault__nav { display: none; }
+  .vault__panel--inspect { top: auto; bottom: 12px; left: 12px; right: 12px; max-height: 42dvh; }
+  .inspect { max-height: 42dvh; padding: 12px 14px; gap: 8px; }
+  .notes-drawer { left: 16px; right: 16px; width: auto; top: 76px; bottom: 16px; z-index: 5; }
+}
+.inspect__seal-row { display: inline-flex; gap: 4px; }
+
+/* Expansión de dominio (final del Voto) */
+.domain { position: fixed; inset: 0; z-index: 100; background: #000; color: #f1e6dc; overflow: hidden; }
+.domain-canvas, .domain-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.domain__title { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; font-family: var(--font-brush); font-size: clamp(44px, 9vw, 120px); letter-spacing: 0.2em; color: #b3140c; opacity: 0; text-shadow: 0 0 24px rgba(200, 20, 10, 0.6); pointer-events: none; white-space: nowrap; }
+.domain[data-phase='dark'] .domain__title { animation: domain-title 3.2s ease-in-out 0.3s forwards; }
+.domain__name { position: absolute; left: 50%; bottom: 11%; transform: translateX(-50%); margin: 0; font-family: var(--font-brush); font-size: clamp(26px, 4vw, 48px); letter-spacing: 0.3em; color: #e8d8c8; opacity: 0; text-shadow: 0 0 18px rgba(0, 0, 0, 0.9); pointer-events: none; white-space: nowrap; }
+.domain[data-phase='lit'] .domain__name { animation: domain-name 4.4s ease-in-out 0.7s forwards; }
+.domain[data-reduce='true'] .domain__title, .domain[data-reduce='true'] .domain__name { animation-name: domain-name; }
+.domain__subtitle { position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%); margin: 0; font-family: var(--font-mono); font-size: 14px; color: #e8d8c8; background: rgba(0, 0, 0, 0.6); padding: 4px 10px; }
+.domain__controls { position: absolute; right: 16px; bottom: 16px; display: flex; gap: 8px; opacity: 0.5; transition: opacity 0.2s; }
+.domain__controls:hover, .domain__controls:focus-within { opacity: 1; }
+.domain[data-phase='off'] .domain__controls, .domain[data-phase='done'] .domain__controls { opacity: 0; pointer-events: none; }
+.domain__controls button { min-height: 34px; padding: 6px 10px; background: rgba(0, 0, 0, 0.6); color: #cfc2b4; border: 1px solid #4a3a30; font-family: var(--font-mono); font-size: 12px; cursor: pointer; }
+@keyframes domain-title { 0% { opacity: 0; letter-spacing: 0.45em; } 30% { opacity: 1; } 70% { opacity: 0.9; } 100% { opacity: 0; letter-spacing: 0.2em; } }
+@keyframes domain-name { 0% { opacity: 0; } 25% { opacity: 0.9; } 75% { opacity: 0.9; } 100% { opacity: 0; } }

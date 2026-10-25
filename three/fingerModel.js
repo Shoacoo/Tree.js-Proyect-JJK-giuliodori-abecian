@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // Modelo "Sukuna's finger" de André Souza (CC BY-NC-ND 4.0). Se usa tal cual:
-// solo se ubica, rota y escala; la malla y las texturas no se modifican.
+// solo se ubica, rota y escala; la malla y las texturas no se modifican. Sí se dibuja
+// opaco: viene marcado como semitransparente (BLEND) aunque su textura es opaca, y así no
+// tapaba la mitad de atrás de los sellos.
 export const FINGER_MODEL_URL = '/models/sukuna-finger.glb';
 
 let cache = null;
@@ -16,7 +18,11 @@ export function loadFingerModel() {
         const meshes = [];
         gltf.scene.updateMatrixWorld(true);
         gltf.scene.traverse((o) => {
-          if (o.isMesh) meshes.push(o);
+          if (!o.isMesh) return;
+          o.material.transparent = false;
+          o.material.depthWrite = true;
+          o.material.needsUpdate = true;
+          meshes.push(o);
         });
         return meshes.length ? { meshes, layout: measure(meshes) } : null;
       })

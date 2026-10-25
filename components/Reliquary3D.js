@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { createAuraMaterial } from '@/three/auraShader';
-import { createFinger } from '@/three/finger';
+import { createFinger, fingerShapeKey, lowestPoint, sampleFingerPoints } from '@/three/finger';
 import { applyFingerModel, fitBandToProfile } from '@/three/fingerModel';
 import { createLooseOfuda, createSealBand } from '@/three/ofuda';
 import { CursedParticles } from '@/three/particles';
@@ -12,6 +12,8 @@ import { createScenery } from '@/three/scenery';
 
 const HOLD_MS = 900; // mantener presionado para despegar con cuidado
 const RIP_MIN_MS = 160; // soltar después de esto y antes de HOLD_MS arranca el sello
+const REST_Y = -0.3; // altura del relicario en reposo
+const FELT_TOP = -1.2 + 0.03; // fieltro de la bandeja (scenery.js), con un margen
 
 function disposeObject(root) {
   root.traverse((object) => {
@@ -117,7 +119,7 @@ export default function Reliquary3D({
 
     // Relicario: dedo, bandas, aura. Se rota con el puntero.
     const relic = new THREE.Group();
-    relic.position.y = -0.3;
+    relic.position.y = REST_Y;
     scene.add(relic);
     const { group: finger, skin } = createFinger(length);
     relic.add(finger);
@@ -196,7 +198,7 @@ export default function Reliquary3D({
         const dx = event.clientX - drag.x;
         const dy = event.clientY - drag.y;
         relic.rotation.x = THREE.MathUtils.clamp(drag.rx + dy * 0.01, -Math.PI, Math.PI);
-        relic.rotation.y = THREE.MathUtils.clamp(drag.ry + dx * 0.006, -0.7, 0.7);
+        relic.rotation.y = THREE.MathUtils.clamp(drag.ry + dx * 0.006, -0.6, 0.6);
         return;
       }
       if (!hold) setHovered(pickSeal(event));
@@ -294,6 +296,9 @@ export default function Reliquary3D({
     const timer = new THREE.Timer();
     let frame = 0;
     let ambientEmit = 0;
+    // Puntos del dedo para apoyarlo sobre el fieltro; se vuelven a tomar si cambia su forma.
+    let restPoints = new Float32Array(0);
+    let restKey = '';
     const tmp = new THREE.Vector3();
 
     const monitor = quality === 'alta' ? createFrameMonitor(() => liveState.onSlow?.()) : () => {};
@@ -369,8 +374,18 @@ export default function Reliquary3D({
       }
       particles.update(dt);
 
-      // Respiración leve del relicario cuando no se lo está girando.
-      if (!drag && !reduce) relic.position.y = -0.3 + Math.sin(elapsed * 1.3) * 0.02 * intensity;
+      // Respiración leve del relicario cuando no se lo está girando. Al girarlo se apoya sobre
+      // el fieltro: se busca su punto más bajo con la rotación del cuadro y nunca lo atraviesa.
+      const shapeKey = fingerShapeKey(finger);
+      if (shapeKey !== restKey) {
+        restKey = shapeKey;
+        restPoints = sampleFingerPoints(finger, relic);
+      }
+      const breathing = !drag && !reduce ? Math.sin(elapsed * 1.3) * 0.02 * intensity : 0;
+      relic.position.y = 0;
+      relic.updateMatrix();
+      const lowest = lowestPoint(restPoints, relic.matrix);
+      relic.position.y = Math.max(REST_Y, lowest === Infinity ? REST_Y : FELT_TOP - lowest) + breathing;
 
       renderer.render(scene, camera);
       monitor(dt);

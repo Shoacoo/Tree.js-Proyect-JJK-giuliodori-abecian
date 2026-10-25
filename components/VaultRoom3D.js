@@ -5,19 +5,53 @@ import * as THREE from 'three';
 import { CASES, HIDDEN_BOX, VAULT_BOXES, getCaseByBox } from '@/data/cases';
 import { CursedParticles } from '@/three/particles';
 import { loadFingerModel } from '@/three/fingerModel';
+import { createMiasma } from '@/three/miasma';
+import { createLooseOfuda } from '@/three/ofuda';
 import { bakeStatic, pruneSmallCasters } from '@/three/optimize';
 import { glowTexture } from '@/three/proctex';
 import { QUALITY_PRESETS, createFrameMonitor, isSoftwareRenderer } from '@/three/quality';
-import { SCREEN, createRoom, createShelf, createTable, createTableRelic, createTerminal, drawTerminalScreen } from '@/three/vault';
+import {
+  RELIC_SCALE,
+  SCREEN,
+  TRAY_FLOOR,
+  createRoom,
+  createShelf,
+  createTable,
+  createTableRelic,
+  createTerminal,
+  drawTerminalScreen,
+  placeLooseOfuda,
+} from '@/three/vault';
+import { fingerShapeKey, lowestPoint, sampleFingerPoints } from '@/three/finger';
 
 // Puntos de vista de la sala: posición de la cámara, punto al que mira y cuánto se puede girar.
+// En "inspect" la cámara queda sobre la bandeja y arrastrar gira el dedo, no la mirada.
 export const VIEWS = {
   overview: { position: [0, 1.62, 3.6], target: [0, 1.2, -1.2], yaw: 0.75, pitch: 0.3 },
   left: { position: [-3.1, 1.72, -1.15], target: [-3.1, 1.42, -3.55], yaw: 0.4, pitch: 0.35 },
   right: { position: [3.1, 1.72, -1.15], target: [3.1, 1.42, -3.55], yaw: 0.4, pitch: 0.35 },
   table: { position: [0, 1.55, 0.75], target: [0, 0.9, -0.02], yaw: 0.6, pitch: 0.2 },
+  inspect: { position: [0, 1.17, 0.27], target: [0, 0.93, -0.01], yaw: 0, pitch: 0 },
   terminal: { position: [1.86, 1.12, 0.5], target: [2.46, 1.05, 0.3], yaw: 0.35, pitch: 0.2 },
 };
+
+const HOLD_MS = 900; // mantener presionado para despegar un sello con cuidado
+const RIP_MIN_MS = 160; // soltar después de esto y antes de HOLD_MS lo arranca
+const ZOOM = { min: 0.5, max: 1.7, step: 0.18 };
+
+// Atmósfera de la sala sin corrupción y con la energía de Sukuna despierta del todo.
+const CLEAN = { fog: new THREE.Color(0x0d0b09), sky: new THREE.Color(0x8d8270), ground: new THREE.Color(0x1a1612), tube: new THREE.Color(0xe8ecdd) };
+const CURSED = { fog: new THREE.Color(0x1c0605), sky: new THREE.Color(0x6a3a30), ground: new THREE.Color(0x3a0806), tube: new THREE.Color(0xffb49c) };
+
+// Última corrupción dibujada. Sobrevive a un remontaje de la escena (cambio de calidad)
+// para que la transición no vuelva a empezar.
+let lastDread = null;
+
+// Latido: dos golpes cortos y una pausa, unas 68 veces por minuto. Devuelve de 0 a 1.
+function heartbeat(t) {
+  const p = (t * 1.13) % 1;
+  return Math.min(1, Math.exp(-((p - 0.08) ** 2) / 0.0012) + 0.6 * Math.exp(-((p - 0.27) ** 2) / 0.0016));
+}
 
 function disposeObject(root) {
   root.traverse((object) => {
@@ -43,7 +77,13 @@ export default function VaultRoom3D({
   openBox,
   tableCaseId,
   sealStates,
+  lamp = false,
+  apiRef,
+  onPeel,
+  onHint,
   influence,
+  corruption = null,
+  corruptionFrom = null,
   signedIn,
   operator,
   reduceEffects,
@@ -56,19 +96,23 @@ export default function VaultRoom3D({
   onHover,
 }) {
   const mountRef = useRef(null);
+  const veilRef = useRef(null);
   const live = useRef({});
 
   useEffect(() => {
-    Object.assign(live.current, { view, boxStatus, openBox, influence, signedIn, operator, reduceEffects, screenData, onNavigate, onBoxClick, onActivate, onHover, onSlow });
+    Object.assign(live.current, { view, boxStatus, openBox, sealStates, lamp, influence, corruption, corruptionFrom, signedIn, operator, reduceEffects, screenData, onNavigate, onBoxClick, onActivate, onHover, onSlow, onPeel, onHint });
     live.current.sync?.();
   });
 
+  // El dedo de la mesa se arma de nuevo solo al cambiar de dedo; los sellos que se retiran
+  // después se animan en sync().
   useEffect(() => {
-    live.current.setTable?.(tableCaseId, sealStates);
-  }, [tableCaseId, sealStates]);
+    live.current.setTable?.(tableCaseId);
+  }, [tableCaseId]);
 
   useEffect(() => {
     const mount = mountRef.current;
+    const veil = veilRef.current;
     const liveState = live.current;
 
     // La calidad se elige al montar; si cambia, Vault vuelve a montar la escena.
@@ -82,16 +126,18 @@ export default function VaultRoom3D({
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.domElement.style.touchAction = 'none';
     renderer.domElement.setAttribute('aria-hidden', 'true');
-    mount.appendChild(renderer.domElement);
+    // Antes del velo, para que el velo quede por encima del canvas.
+    mount.prepend(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0d0b09);
-    scene.fog = new THREE.Fog(0x0d0b09, 6, 14);
+    scene.background = CLEAN.fog.clone();
+    scene.fog = new THREE.Fog(CLEAN.fog.clone(), 6, 14);
 
     const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 40);
 
     // Luces: relleno muy bajo, fluorescente frío, lámpara de la mesa y la luz roja de los dedos.
-    scene.add(new THREE.HemisphereLight(0x8d8270, 0x1a1612, 1.1));
+    const ambient = new THREE.HemisphereLight(CLEAN.sky, CLEAN.ground, 1.1);
+    scene.add(ambient);
     const fluorescent = new THREE.PointLight(0xe8ecdd, 16, 11, 1.4);
     fluorescent.position.set(0, 2.95, -1.6);
     fluorescent.castShadow = true;
@@ -101,11 +147,12 @@ export default function VaultRoom3D({
     fluorescent.shadow.autoUpdate = false;
     scene.add(fluorescent);
     // Luces bajas sobre cada estantería para leer las etiquetas.
-    [-3.1, 3.1].forEach((x) => {
+    const shelfLights = [-3.1, 3.1].map((x) => {
       const shelfLight = new THREE.SpotLight(0xf2e6cc, 9, 5, 0.6, 0.6, 1.5);
       shelfLight.position.set(x, 3.0, -2.2);
       shelfLight.target.position.set(x, 1.1, -3.6);
       scene.add(shelfLight, shelfLight.target);
+      return shelfLight;
     });
     const curseLight = new THREE.PointLight(0xc7352a, 0, 6, 2);
     curseLight.position.set(0, 1.6, -3);
@@ -115,7 +162,7 @@ export default function VaultRoom3D({
     const boxLight = new THREE.PointLight(0xff3a22, 0, 1.8, 2);
     scene.add(boxLight);
 
-    const { group: roomGroup, tubes, flickerTubes } = createRoom();
+    const { group: roomGroup, tubes, flickerTubes, exitDoor } = createRoom();
     scene.add(roomGroup);
 
     const shelves = {
@@ -136,10 +183,11 @@ export default function VaultRoom3D({
     // Menos llamadas de dibujo: se unen las piezas fijas que comparten material y se apagan
     // las sombras de las piezas chicas.
     pruneSmallCasters(scene);
-    bakeStatic(roomGroup, [...tubes, ...flickerTubes]);
+    bakeStatic(roomGroup, [...tubes, ...flickerTubes, exitDoor]);
     bakeStatic(shelves.left.group, [...shelves.left.boxes, shelves.left.outline]);
     bakeStatic(shelves.right.group, [...shelves.right.boxes, shelves.right.outline]);
-    bakeStatic(table.group, [table.slot, table.beam, table.lamp, table.lamp.target]);
+    // Las libretas y la planilla se vuelven a escribir: no se unen con el resto.
+    bakeStatic(table.group, [table.slot, table.beam, table.lamp, table.lamp.target, table.notebook.group, table.clipboard.group, table.archive.group]);
     bakeStatic(terminal.group, [terminal.screen, terminal.towerLed]);
 
     // Sombras: se recalculan solo cuando algo se mueve.
@@ -170,22 +218,87 @@ export default function VaultRoom3D({
     particles.material.uniforms.uSize.value = 7;
     scene.add(particles.points);
 
-    // Relicario sobre la mesa (el dedo elegido).
+    // Niebla roja a ras del piso: aparece y se espesa a medida que avanza la inspección.
+    const miasma = createMiasma({ layers: preset.miasma ?? 1 });
+    scene.add(miasma.group);
+    // Corrupción que se ve ahora: sigue al valor real despacio, así al volver de un
+    // expediente la sala se enturbia delante del usuario.
+    let dread = null;
+    let veilShown = -1;
+    const doorSeam = new THREE.Vector3();
+
+    // Relicario sobre la mesa: el dedo elegido, sus sellos y, detrás de la bandeja, los
+    // ofudas que ya se retiraron.
     let tableRelic = null;
-    liveState.setTable = (caseId, states) => {
+    let tableCase = null;
+    let tableBands = new Map();
+    const peeling = new Map();
+    const loose = new THREE.Group();
+    loose.scale.setScalar(RELIC_SCALE);
+    table.slot.add(loose);
+    const spin = { x: 0, y: 0, goalX: 0, goalY: 0 };
+    // Puntos del dedo para apoyarlo sobre la bandeja; se vuelven a tomar si cambia su forma.
+    let relicPoints = new Float32Array(0);
+    let relicKey = '';
+    let hold = null;
+    const sealPos = new THREE.Vector3();
+    const addLoose = (seal) => loose.add(placeLooseOfuda(createLooseOfuda(seal, 0), loose.children.length));
+
+    liveState.setTable = (caseId) => {
       if (tableRelic) {
         table.slot.remove(tableRelic);
         disposeObject(tableRelic);
         tableRelic = null;
       }
-      const data = CASES.find((c) => c.id === caseId);
-      if (!data) return;
-      tableRelic = createTableRelic(data, states?.[caseId]?.seals);
+      [...loose.children].forEach((ofuda) => {
+        loose.remove(ofuda);
+        disposeObject(ofuda);
+      });
+      tableBands = new Map();
+      peeling.clear();
+      hold = null;
+      Object.assign(spin, { x: 0, y: 0, goalX: 0, goalY: 0 });
+      relicPoints = new Float32Array(0);
+      relicKey = '';
+      tableCase = CASES.find((c) => c.id === caseId) ?? null;
+      table.notebook.redraw(tableCase);
+      if (!tableCase) return;
+      tableRelic = createTableRelic(tableCase);
+      tableBands = tableRelic.userData.bands;
+      const states = liveState.sealStates?.[tableCase.id]?.seals ?? {};
+      tableCase.seals.forEach((seal) => {
+        if (!states[seal.id]?.peeled) return;
+        tableBands.get(seal.id).visible = false;
+        addLoose(seal);
+      });
       table.slot.add(tableRelic);
       markShadows();
       loadFingerModel().then(() => setTimeout(markShadows, 0));
     };
-    liveState.setTable(tableCaseId, sealStates);
+    liveState.setTable(tableCaseId);
+
+    // Sellos retirados después de armar la mesa: se despegan con una animación.
+    // También se actualizan la planilla y las carpetas archivadas.
+    const syncTable = () => {
+      const all = liveState.sealStates ?? {};
+      const states = all[tableCase?.id]?.seals ?? {};
+      table.clipboard.redraw(tableCase, states, liveState.operator);
+      table.archive.redraw(CASES.filter((c) => all[c.id]?.archived).map((c) => c.code));
+      if (!tableCase) return;
+      let rebuild = false;
+      tableCase.seals.forEach((seal) => {
+        const band = tableBands.get(seal.id);
+        const s = states[seal.id];
+        if (s?.peeled && band.visible && !peeling.has(seal.id)) {
+          peeling.set(seal.id, { start: performance.now(), ripped: s.ripped, duration: s.ripped ? 450 : 1300 });
+          band.getWorldPosition(sealPos);
+          particles.emit(sealPos, s.ripped ? 40 : 14, s.ripped ? 0.45 : 0.2);
+        }
+        // Se reinició el recorrido: el dedo vuelve con todos sus sellos.
+        if (!s?.peeled && !band.visible) rebuild = true;
+      });
+      if (rebuild) liveState.setTable(tableCase.id);
+    };
 
     // Cámara con transiciones suaves entre vistas y giro limitado con el puntero.
     const camPos = new THREE.Vector3(...VIEWS.overview.position);
@@ -197,16 +310,65 @@ export default function VaultRoom3D({
     const lookDir = new THREE.Vector3();
     const tmp = new THREE.Vector3();
 
+    let zoom = 1;
+    // Corrimiento lateral para mirar un sello de cerca (lupa).
+    let focusX = 0;
+
     const applyView = (name) => {
       const v = VIEWS[name] ?? VIEWS.overview;
-      goalPos.set(...v.position);
-      goalTarget.set(...v.target);
       if (name !== currentView) {
         look.goalYaw = 0;
         look.goalPitch = 0;
+        zoom = 1;
+        focusX = 0;
+      }
+      goalPos.set(...v.position);
+      goalTarget.set(...v.target);
+      if (name === 'inspect') {
+        // En pantallas verticales la cámara se aleja para que entre el dedo entero; en
+        // horizontales se corre a la derecha para dejar el dedo libre del panel lateral.
+        const portrait = camera.aspect < 1;
+        const reach = zoom * (portrait ? 1.9 : 1.2);
+        goalPos.sub(goalTarget).multiplyScalar(reach).add(goalTarget);
+        const shift = focusX + (portrait ? 0 : 0.11 * zoom);
+        goalPos.x += shift;
+        goalTarget.x += shift;
+        // En vertical el panel ocupa la parte de abajo: la cámara mira más abajo y el dedo sube.
+        if (portrait) goalTarget.y -= 0.14 * zoom;
       }
       currentView = name;
     };
+
+    const zoomBy = (delta) => {
+      zoom = THREE.MathUtils.clamp(zoom + delta, ZOOM.min, ZOOM.max);
+      if (zoom >= 1) focusX = 0;
+      applyView(currentView);
+    };
+    const focusSeal = (sealId) => {
+      const band = tableBands.get(sealId);
+      if (!band?.visible) return;
+      band.getWorldPosition(sealPos);
+      focusX = sealPos.x - VIEWS.inspect.target[0];
+    };
+    if (apiRef) {
+      apiRef.current = {
+        zoomIn: () => zoomBy(-ZOOM.step),
+        zoomOut: () => zoomBy(ZOOM.step),
+        reset: () => {
+          zoom = 1;
+          focusX = 0;
+          spin.goalX = 0;
+          spin.goalY = 0;
+          applyView(currentView);
+        },
+        // Lupa: centra la cámara en un sello y la acerca.
+        focus: (sealId) => {
+          focusSeal(sealId);
+          zoom = Math.min(zoom, 0.55);
+          applyView(currentView);
+        },
+      };
+    }
 
     // Estado de las cajas: visibilidad de la B3-11, apertura, brillo de los dedos.
     const sync = () => {
@@ -228,6 +390,7 @@ export default function VaultRoom3D({
         }
       });
       markShadows();
+      syncTable();
       applyView(liveState.view);
     };
     liveState.sync = sync;
@@ -240,14 +403,21 @@ export default function VaultRoom3D({
     boxes.forEach((box) => targets.push(box.userData.hit));
     targets.push(...shelves.left.group.children.filter((c) => c.userData.type === 'shelf'));
     targets.push(...shelves.right.group.children.filter((c) => c.userData.type === 'shelf'));
-    table.group.traverse((c) => c.userData.type === 'table' && targets.push(c));
+    table.group.traverse((c) => (c.userData.type === 'table' || c.userData.type === 'notebook') && targets.push(c));
     terminal.group.traverse((c) => c.userData.type === 'terminal' && targets.push(c));
+    targets.push(exitDoor);
 
     const pick = (event) => {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
+      // De cerca, los sellos que siguen en el dedo se pueden tocar.
+      if (currentView === 'inspect' && tableRelic) {
+        const bands = [...tableBands.values()].filter((b) => b.visible && !peeling.has(b.userData.sealId));
+        const band = raycaster.intersectObjects(bands, false)[0];
+        if (band) return { type: 'seal', sealId: band.object.userData.sealId };
+      }
       const hits = raycaster.intersectObjects(targets, false).filter((h) => {
         let o = h.object;
         while (o) {
@@ -256,8 +426,9 @@ export default function VaultRoom3D({
         }
         return true;
       });
-      // Las cajas tienen prioridad sobre la estantería que las contiene.
-      return hits.find((h) => h.object.userData.type === 'box')?.object.userData ?? hits[0]?.object.userData ?? null;
+      // Las cajas tienen prioridad sobre la estantería que las contiene, y las libretas sobre la mesa.
+      const first = (type) => hits.find((h) => h.object.userData.type === type)?.object.userData;
+      return first('box') ?? first('notebook') ?? hits[0]?.object.userData ?? null;
     };
 
     // Pantalla de la terminal: menú propio, con zonas clickeables.
@@ -278,18 +449,26 @@ export default function VaultRoom3D({
 
     let hovered = null;
     let drag = null;
-    const hoverKey = (h) => (h ? `${h.type}:${h.code ?? h.side ?? ''}` : null);
+    const hoverKey = (h) => (h ? `${h.type}:${h.code ?? h.side ?? h.sealId ?? ''}` : null);
 
     const onPointerMove = (event) => {
       if (drag) {
         const dx = event.clientX - drag.x;
         const dy = event.clientY - drag.y;
         if (Math.hypot(dx, dy) > 4) drag.moved = true;
+        // En la mesa de inspección se gira el dedo para ver el otro lado de los sellos.
+        if (currentView === 'inspect') {
+          spin.goalX = THREE.MathUtils.clamp(drag.spinX + dy * 0.01, -Math.PI, Math.PI);
+          // De costado gira poco: más, y las puntas chocarían con el borde de la bandeja.
+          spin.goalY = THREE.MathUtils.clamp(drag.spinY + dx * 0.006, -0.45, 0.45);
+          return;
+        }
         const v = VIEWS[currentView];
         look.goalYaw = THREE.MathUtils.clamp(drag.yaw - dx * 0.004, -v.yaw, v.yaw);
         look.goalPitch = THREE.MathUtils.clamp(drag.pitch + dy * 0.003, -v.pitch, v.pitch);
         return;
       }
+      if (hold) return;
       const screenAction = screenPick(event);
       const screenHover = screenAction && screenAction !== 'screen' ? screenAction : null;
       if (screenHover !== screenState.hover) {
@@ -306,11 +485,53 @@ export default function VaultRoom3D({
 
     const onPointerDown = (event) => {
       renderer.domElement.setPointerCapture(event.pointerId);
-      drag = { x: event.clientX, y: event.clientY, yaw: look.goalYaw, pitch: look.goalPitch, moved: false };
+      // Mantener presionado un sello empieza a despegarlo.
+      const hit = currentView === 'inspect' ? pick(event) : null;
+      if (hit?.type === 'seal') {
+        hold = { id: hit.sealId, start: performance.now(), done: false };
+        liveState.onHint?.('hold');
+        return;
+      }
+      drag = { x: event.clientX, y: event.clientY, yaw: look.goalYaw, pitch: look.goalPitch, spinX: spin.goalX, spinY: spin.goalY, moved: false };
+    };
+
+    // Soltar antes de tiempo arranca el sello; si se cancela el gesto, no pasa nada.
+    const releaseHold = (cancelled = false) => {
+      const band = tableBands.get(hold.id);
+      if (band) {
+        band.material.emissiveIntensity = 0;
+        band.position.y = band.userData.baseY;
+      }
+      if (!hold.done && !cancelled) {
+        // Se mide el tiempo real: con pocos cuadros por segundo el bucle puede no haberlo marcado.
+        const held = performance.now() - hold.start;
+        if (held >= HOLD_MS) liveState.onPeel?.(hold.id, true);
+        else if (held >= RIP_MIN_MS) liveState.onPeel?.(hold.id, false);
+        else liveState.onHint?.('tap');
+      }
+      hold = null;
+    };
+
+    const onPointerCancel = (event) => {
+      if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
+      if (hold) releaseHold(true);
+      drag = null;
+    };
+
+    const onWheel = (event) => {
+      if (currentView !== 'inspect') return;
+      event.preventDefault();
+      // Acercar con la rueda sobre un sello lo pone en el centro.
+      if (event.deltaY < 0 && hovered?.type === 'seal') focusSeal(hovered.sealId);
+      zoomBy(Math.sign(event.deltaY) * ZOOM.step);
     };
 
     const onPointerUp = (event) => {
       if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
+      if (hold) {
+        releaseHold();
+        return;
+      }
       const wasDrag = drag?.moved;
       drag = null;
       if (wasDrag) return;
@@ -332,12 +553,16 @@ export default function VaultRoom3D({
         const box = boxByCode.get(hit.code);
         if (box.userData.side !== currentView) liveState.onNavigate?.(box.userData.side);
         else liveState.onBoxClick?.(hit.code);
+      } else if (hit.type === 'notebook') {
+        liveState.onActivate?.(`notebook:${hit.side}`);
       } else if (hit.type === 'table') {
         if (currentView === 'table') liveState.onActivate?.('table');
-        else liveState.onNavigate?.('table');
+        else if (currentView !== 'inspect') liveState.onNavigate?.('table');
       } else if (hit.type === 'terminal' && currentView !== 'terminal') {
         // De cerca se usa el menú de la pantalla.
         liveState.onNavigate?.('terminal');
+      } else if (hit.type === 'exit') {
+        liveState.onActivate?.('exit');
       }
     };
 
@@ -346,7 +571,8 @@ export default function VaultRoom3D({
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointerup', onPointerUp);
-    canvas.addEventListener('pointercancel', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerCancel);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
 
     const resize = () => {
       const { clientWidth, clientHeight } = mount;
@@ -358,6 +584,7 @@ export default function VaultRoom3D({
       // En vertical se abre el campo visual para que entren las estanterías.
       camera.fov = camera.aspect < 1 ? 72 : 55;
       camera.updateProjectionMatrix();
+      applyView(currentView);
     };
     const observer = new ResizeObserver(resize);
     observer.observe(mount);
@@ -399,6 +626,7 @@ export default function VaultRoom3D({
     const timer = new THREE.Timer();
     let frame = 0;
     let emit = 0;
+    let doorEmit = 0;
     let lampShadowTimer = 0;
     // Modo automático: si la PC no llega a ~30 cuadros por segundo, Vault baja la calidad.
     const monitor =
@@ -413,7 +641,13 @@ export default function VaultRoom3D({
       const dt = Math.min(rawDt, 0.05);
       const elapsed = timer.getElapsed();
       const reduce = liveState.reduceEffects;
-      const influenceLevel = liveState.influence ?? 0;
+      const goal = liveState.corruption;
+      if (goal !== null && goal !== undefined) {
+        if (dread === null) dread = lastDread ?? liveState.corruptionFrom ?? goal;
+        dread += (goal - dread) * Math.min(1, rawDt * (reduce ? 3 : 0.4));
+      }
+      const c = dread ?? 0;
+      const beat = reduce ? 0 : heartbeat(elapsed) * c;
 
       // Cámara.
       const k = 1 - Math.exp(-rawDt * (reduce ? 12 : 3.2));
@@ -426,16 +660,33 @@ export default function VaultRoom3D({
       lookDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), look.yaw);
       tmp.copy(camPos).add(lookDir);
       tmp.y += look.pitch * lookDir.length() * -1;
-      if (!reduce) tmp.y += Math.sin(elapsed * 0.9) * 0.004;
+      // Con la sala corrompida la mirada se vuelve pesada: un vaivén lento que crece.
+      if (!reduce) {
+        tmp.y += Math.sin(elapsed * 0.9) * (0.004 + c * 0.012);
+        tmp.x += Math.sin(elapsed * 0.37) * c * 0.018;
+      }
       camera.lookAt(tmp);
 
-      // Fluorescente que parpadea más con la influencia.
-      if (!reduce && Math.random() < 0.003 + influenceLevel * 0.008) {
+      // Atmósfera: la niebla se cierra y se tiñe de rojo, la luz baja y se ensucia.
+      scene.fog.color.lerpColors(CLEAN.fog, CURSED.fog, c);
+      scene.background.copy(scene.fog.color);
+      scene.fog.near = 6 - c * 3;
+      scene.fog.far = 14 - c * 4;
+      ambient.color.lerpColors(CLEAN.sky, CURSED.sky, c);
+      ambient.groundColor.lerpColors(CLEAN.ground, CURSED.ground, c);
+      ambient.intensity = 1.1 - c * 0.45 + beat * 0.08;
+      fluorescent.color.lerpColors(CLEAN.tube, CURSED.tube, c * 0.7);
+      shelfLights.forEach((light) => (light.intensity = 9 - c * 4));
+      renderer.toneMappingExposure = 1.15 - c * 0.2;
+
+      // Fluorescente que parpadea más y alumbra menos a medida que despierta la energía.
+      if (!reduce && Math.random() < 0.003 + c * 0.03) {
         fluorescent.intensity = 0.8;
         tubes.forEach((t) => (t.material.emissiveIntensity = 0.2));
       } else {
-        fluorescent.intensity += (16 - fluorescent.intensity) * Math.min(1, dt * 10);
-        tubes.forEach((t) => (t.material.emissiveIntensity += (2.2 - t.material.emissiveIntensity) * Math.min(1, dt * 10)));
+        const tubeLevel = 16 - c * 7;
+        fluorescent.intensity += (tubeLevel - fluorescent.intensity) * Math.min(1, dt * 10);
+        tubes.forEach((t) => (t.material.emissiveIntensity += (2.2 - c * 0.9 - t.material.emissiveIntensity) * Math.min(1, dt * 10)));
       }
       // El tubo del frente está por quemarse: zumba y titila.
       flickerTubes.forEach((t) => {
@@ -453,7 +704,18 @@ export default function VaultRoom3D({
         }
         dp.needsUpdate = true;
       }
-      curseLight.intensity = influenceLevel * 0.9 * (reduce ? 1 : 0.85 + Math.random() * 0.15);
+      // Luz roja que sale de la puerta sellada y late como un corazón.
+      curseLight.intensity = c * 3 * (reduce ? 1 : 0.85 + Math.random() * 0.15) * (1 + beat * 0.9);
+      curseLight.distance = 6 + c * 4;
+      miasma.update(reduce ? 0 : elapsed, c, beat);
+      const veilOpacity = c * (0.85 + beat * 0.15);
+      if (veil && Math.abs(veilOpacity - veilShown) > 0.004) {
+        veilShown = veilOpacity;
+        veil.style.opacity = veilOpacity.toFixed(3);
+      }
+      // La salida se ilumina de verde al señalarla.
+      const exitGlow = hovered?.type === 'exit' ? 0.35 : 0;
+      exitDoor.material.emissiveIntensity += (exitGlow - exitDoor.material.emissiveIntensity) * Math.min(1, rawDt * 10);
 
       // Cajas: se deslizan hacia afuera y se abre la tapa.
       let glowBox = null;
@@ -473,7 +735,7 @@ export default function VaultRoom3D({
           const pulse = reduce ? 1 : 0.75 + Math.sin(elapsed * 2.2 + u.code.length) * 0.18 + Math.sin(elapsed * 7.3) * 0.07;
           const hoverBoost = hovered?.type === 'box' && hovered.code === u.code ? 1.35 : 1;
           const g = base * pulse * hoverBoost;
-          const level = g * (1.4 + u.open * 2.6) * (1 + influenceLevel * 0.25);
+          const level = g * (1.4 + u.open * 2.6) * (1 + c * 0.5 + beat * 0.3);
           // La luz compartida va a la caja más abierta; si no hay, a la señalada y, si tampoco,
           // a la que espera inspección (así la sala sigue indicando por dónde seguir).
           const waiting = u.status === 'pending' || u.status === 'revealed' ? 0.5 : 0;
@@ -514,17 +776,73 @@ export default function VaultRoom3D({
 
       if (tableRelic) {
         const uniforms = tableRelic.userData.aura.material.uniforms;
-        uniforms.uIntensity.value = 0.3 + influenceLevel * 0.15;
+        const peeledCount = tableCase.seals.filter((s) => !tableBands.get(s.id).visible || peeling.has(s.id)).length;
+        uniforms.uIntensity.value = 0.3 + c * 0.45 + (peeledCount / tableCase.seals.length) * 0.5;
         if (!reduce) uniforms.uTime.value = elapsed;
-        if (!reduce) {
-          tableRelic.rotation.y = Math.sin(elapsed * 0.3) * 0.08;
-          // El vaivén es lento: la sombra de la lámpara se actualiza 8 veces por segundo.
+        // Giro con el puntero en la vista de inspección, más un vaivén leve.
+        spin.x += (spin.goalX - spin.x) * Math.min(1, rawDt * 10);
+        spin.y += (spin.goalY - spin.y) * Math.min(1, rawDt * 10);
+        tableRelic.rotation.x = spin.x;
+        tableRelic.rotation.y = spin.y + (reduce ? 0 : Math.sin(elapsed * 0.3) * 0.08);
+        // Apoyado sobre la bandeja: al girarlo rueda sobre el terciopelo y nunca lo atraviesa.
+        // Se busca su punto más bajo con la rotación de este cuadro y se lo deja tocando el piso.
+        const { finger } = tableRelic.userData;
+        const shapeKey = fingerShapeKey(finger);
+        if (shapeKey !== relicKey) {
+          relicKey = shapeKey;
+          relicPoints = sampleFingerPoints(finger, tableRelic);
+        }
+        tableRelic.position.y = 0;
+        tableRelic.updateMatrix();
+        const lowest = lowestPoint(relicPoints, tableRelic.matrix);
+        if (lowest !== Infinity) tableRelic.position.y = TRAY_FLOOR - lowest;
+        const spinning = Math.abs(spin.goalX - spin.x) + Math.abs(spin.goalY - spin.y) > 0.001;
+        if (!reduce || spinning || hold || peeling.size) {
+          // El movimiento es lento: la sombra de la lámpara se actualiza 8 veces por segundo.
           lampShadowTimer += rawDt;
           if (lampShadowTimer > 0.125) {
             lampShadowTimer = 0;
             table.lamp.shadow.needsUpdate = true;
           }
         }
+
+        // Con la luz rasante, la tinta fresca brilla apenas (delata el último sello colocado).
+        tableBands.forEach((band) => {
+          if (hold?.id === band.userData.sealId) return;
+          band.material.emissive.set(liveState.lamp ? 0x5b7bd6 : 0x9e1f17);
+          band.material.emissiveIntensity = liveState.lamp && band.userData.ink === 'fresca' ? 0.35 : 0;
+        });
+
+        // Mantener presionado: el sello se tensa y se despega con cuidado al completar.
+        if (hold && !hold.done) {
+          const band = tableBands.get(hold.id);
+          const p = Math.min(1, (performance.now() - hold.start) / HOLD_MS);
+          band.material.emissive.set(0x9e1f17);
+          band.material.emissiveIntensity = p * 0.6;
+          band.position.y = band.userData.baseY + p * 0.25 + (reduce ? 0 : (Math.random() - 0.5) * 0.03 * p);
+          if (p >= 1) {
+            hold.done = true;
+            liveState.onPeel?.(hold.id, true);
+          }
+        }
+
+        // Sellos que se van: suben, giran, se desvanecen y quedan planos detrás de la bandeja.
+        peeling.forEach((anim, id) => {
+          const band = tableBands.get(id);
+          if (!band.visible) return;
+          const p = Math.min(1, (performance.now() - anim.start) / anim.duration);
+          const ease = 1 - (1 - p) ** 3;
+          band.position.y = band.userData.baseY + ease * (anim.ripped ? 2.2 : 3.4);
+          band.rotation.x = ease * (anim.ripped ? 4 : 1.6);
+          band.rotation.z = anim.ripped ? ease * 0.8 : 0;
+          band.scale.set(1 + ease * 0.6, 1 + ease * 0.6, 0.86 * (1 + ease * 0.6));
+          band.material.opacity = 1 - ease;
+          if (p >= 1) {
+            band.visible = false;
+            addLoose(tableCase.seals.find((s) => s.id === id));
+            markShadows();
+          }
+        });
       }
       if (shadowsDirty) {
         shadowsDirty = false;
@@ -533,7 +851,15 @@ export default function VaultRoom3D({
       }
 
       // Energía que se escapa de las cajas con dedos.
-      emit += dt * (reduce ? 1.5 : 6) * (1 + influenceLevel);
+      emit += dt * (reduce ? 1.5 : 6) * (1 + c * 2.5);
+      // Pasada la mitad del recorrido, la energía se filtra también por el borde de la puerta sellada.
+      if (c > 0.35) doorEmit += dt * (reduce ? 1 : 7) * ((c - 0.35) / 0.65);
+      while (doorEmit > 1) {
+        doorEmit -= 1;
+        const angle = Math.random() * Math.PI * 2;
+        doorSeam.set(Math.cos(angle) * 1.05, 1.22 + Math.sin(angle) * 1.05, -3.8);
+        particles.emit(doorSeam, 1, 0.1);
+      }
       while (emit > 1) {
         emit -= 1;
         const candidates = boxes.filter((b) => b.visible && (b.userData.status === 'pending' || b.userData.status === 'revealed'));
@@ -562,15 +888,18 @@ export default function VaultRoom3D({
     tick();
 
     return () => {
+      if (dread !== null) lastDread = dread;
       cancelAnimationFrame(frame);
       timer.dispose();
       observer.disconnect();
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointerup', onPointerUp);
-      canvas.removeEventListener('pointercancel', onPointerUp);
+      canvas.removeEventListener('pointercancel', onPointerCancel);
+      canvas.removeEventListener('wheel', onWheel);
       liveState.sync = null;
       liveState.setTable = null;
+      if (apiRef) apiRef.current = null;
       particles.dispose();
       disposeObject(scene);
       renderer.dispose();
@@ -579,5 +908,9 @@ export default function VaultRoom3D({
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return <div ref={mountRef} className="vault-canvas" />;
+  return (
+    <div ref={mountRef} className="vault-canvas">
+      <div ref={veilRef} className="vault-canvas__veil" aria-hidden="true" />
+    </div>
+  );
 }

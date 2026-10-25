@@ -40,6 +40,7 @@ export const CASES = [
         label: 'Sello de la base',
         x: -3.9,
         ink: 'seca',
+        condition: 'Fisurado',
         inscription: '急急如律令',
         flashback: {
           title: 'Residuo 01-C',
@@ -63,6 +64,7 @@ export const CASES = [
         label: 'Sello del nudillo',
         x: 0.2,
         ink: 'seca',
+        condition: 'Intacto',
         inscription: '封',
         flashback: {
           title: 'Residuo 01-B',
@@ -86,6 +88,7 @@ export const CASES = [
         label: 'Sello de la punta',
         x: 4.1,
         ink: 'fresca',
+        condition: 'Intacto',
         inscription: '急急如律令',
         flashback: {
           title: 'Residuo 01-A',
@@ -133,6 +136,7 @@ export const CASES = [
         label: 'Sello de la base',
         x: -3.6,
         ink: 'fresca',
+        condition: 'Intacto',
         inscription: '封',
         flashback: {
           title: 'Residuo 02-B',
@@ -156,6 +160,7 @@ export const CASES = [
         label: 'Sello de la punta',
         x: 3.8,
         ink: 'seca',
+        condition: 'Dañado',
         inscription: '急急如律令',
         flashback: {
           title: 'Residuo 02-A',
@@ -203,6 +208,7 @@ export const CASES = [
         label: 'Sello de la base',
         x: -4.3,
         ink: 'seca',
+        condition: 'Fisurado',
         inscription: '封',
         flashback: {
           title: 'Residuo 03-D',
@@ -226,6 +232,7 @@ export const CASES = [
         label: 'Sello medio',
         x: -1.5,
         ink: 'seca',
+        condition: 'Dañado',
         hint: 'El papel del sello medio tapa el borde del sello de la punta. La punta se selló antes.',
         inscription: '急急如律令',
         flashback: {
@@ -250,6 +257,7 @@ export const CASES = [
         label: 'Sello del nudillo',
         x: 1.2,
         ink: 'fresca',
+        condition: 'Intacto',
         hint: 'Bajo la tinta fresca se ve otra capa: el sello medio se colocó justo antes que este.',
         inscription: '封',
         flashback: {
@@ -274,6 +282,7 @@ export const CASES = [
         label: 'Sello de la punta',
         x: 4.3,
         ink: 'seca',
+        condition: 'Fisurado',
         hint: 'Solo queda el sello de la base, el primero que se colocó.',
         inscription: '急急如律令',
         flashback: {
@@ -304,7 +313,13 @@ export const VAULT_BOXES = {
 };
 export const HIDDEN_BOX = 'B3-11';
 
-export const SEAL_STATES = ['Intacto', 'Debilitado', 'Roto'];
+// Estado de un sello y cómo se reconoce a simple vista (la planilla de control lo pide).
+export const SEAL_STATES = ['Intacto', 'Fisurado', 'Dañado'];
+export const SEAL_STATE_GUIDE = {
+  Intacto: 'Papel parejo y claro, borde rojo entero, tinta nítida.',
+  Fisurado: 'Grietas finas que cruzan el papel, borde rojo cortado, canto deshilachado.',
+  Dañado: 'Papel partido y quemado, con pedazos que faltan: se ve el dedo por debajo.',
+};
 
 export const MEMORY_TOTAL = CASES.reduce((sum, c) => sum + c.seals.length, 0);
 

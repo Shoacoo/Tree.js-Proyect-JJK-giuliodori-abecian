@@ -27,6 +27,7 @@ Este README es también la **memoria descriptiva del proyecto**: qué se decidi�
 15. [Pendientes](#15-pendientes)
 16. [Historial de trabajo](#16-historial-de-trabajo)
 17. [Créditos](#17-créditos)
+- [Rama `jugika`: qué cambió](#rama-jugika-qué-cambió)
 
 ---
 
@@ -37,6 +38,70 @@ Este README es también la **memoria descriptiva del proyecto**: qué se decidi�
 - `npm run lint` y `npm run build` pasan sin errores (Next.js genera 12 páginas estáticas).
 - Sin variables de Firebase, todo funciona en modo local (localStorage). Con un `.env.local` válido, el progreso se guarda en Firestore.
 - Falta el deploy (ver [Pendientes](#15-pendientes)).
+- **Rama `jugika`:** sale de `contencion` y suma la inspección dentro de la bóveda, la atmósfera que empeora con el avance, la salida para cerrar sesión y la expansión de dominio del final. Ver [Rama `jugika`: qué cambió](#rama-jugika-qué-cambió).
+
+## Rama `jugika`: qué cambió
+
+Resumen de todo lo que se agregó en esta rama, con los archivos involucrados. `npm run build` pasa (12 páginas estáticas). `npm run lint` no se pudo correr en la máquina donde se trabajó porque faltaba el paquete `typescript` que pide `eslint-config-next`.
+
+### 1. Salida de emergencia: cerrar sesión
+- La puerta verde de la pared izquierda de la bóveda (非常口) ahora es clickeable: se ilumina al pasar el puntero y abre un diálogo de confirmación ("Cerrar sesión" / "Quedarme", Escape o click afuera cancelan).
+- Confirmar cierra la sesión de Firebase o la del operador local, vuelve la cámara al centro y avisa "Sesión cerrada". Sin sesión, la puerta indica que hay que identificarse en la terminal.
+- Alternativa sin 3D: botón "Salida · cerrar sesión" en la barra "Moverse sin 3D".
+- Archivos: `three/vaultRoom.js` (la puerta tiene `userData.type = 'exit'`), `components/VaultRoom3D.js`, `components/Vault.js`.
+
+### 2. La bóveda se enturbia con el avance
+- `getCorruption(progress)` en `hooks/useProgress.js` calcula un nivel de 0 a 1: cada dedo pesa igual, sube con cada sello retirado (70 % de su parte) y completa al archivarlo; el residuo (sellos arrancados, fuera de orden o mal registrados) suma hasta un 15 %.
+- En la escena (`components/VaultRoom3D.js`): la niebla se cierra y se tiñe de rojo, baja y se ensucia la luz, el fluorescente parpadea más, la puerta sellada late con una luz roja (latido de ~68 ppm) y a partir de la mitad del recorrido se escapan brasas por su borde; las cajas brillan más y la cámara tiene un vaivén lento.
+- Miasma: niebla roja a ras del piso hecha con un shader propio de ruido fbm deformado (`three/miasma.js`). No se dibuja mientras el nivel es 0. Capas según calidad (`three/quality.js`: 2 en alta, 1 en baja).
+- Velo de bordes oscuros y rojos sobre el canvas (`.vault-canvas__veil`).
+- Al volver de un expediente, la sala arranca como estaba y se oscurece en unos segundos (el último nivel visto se guarda en `sessionStorage`) y aparece un aviso según el nivel.
+- Sonido: `setHumDread()` en `lib/sound.js` agrega un gruñido grave que late al zumbido.
+- Con "Reducir efectos" la sala se oscurece igual pero sin latidos, parpadeos ni movimiento de cámara.
+
+### 3. Inspección dentro de la mesa (sin cambiar de pantalla)
+- Desde la mesa, "Inspeccionar de cerca" baja la cámara sobre la bandeja (vista `inspect`). Los sellos se retiran ahí: mantener presionado despega con cuidado, soltar antes arranca. Arrastrar gira el dedo; la rueda y los botones acercan; la **Lupa** de cada sello centra la cámara en él; la luz rasante delata la tinta fresca.
+- Al retirar un sello se abre su residuo (flashback) y el papel queda apoyado detrás de la bandeja. Al archivar, el dedo vuelve a su caja y un aviso indica dónde está el siguiente. El dedo de la B3-11 sigue llevando a `/expediente/00`.
+- Panel de inspección con todos los controles también sin 3D (`components/InspectionPanel.js`).
+- Libretas a los costados de la mesa, en 3D y legibles en un panel (`components/InspectionNotes.js`): libreta del expediente y carpetas archivadas a la izquierda, planilla de control a la derecha. Pestañas: Expediente, Residuos (con las palabras ocultas), Planilla y Archivados. Las texturas de las libretas se reescriben con el progreso (`three/vaultTable.js`).
+- El dedo de la mesa ya no se reconstruye en cada cambio de progreso: se arma al cambiar de dedo y los sellos retirados se animan.
+- La ruta `/expediente/[id]` se mantiene (índice de la terminal) y es la ruta dinámica que pide la consigna.
+- Archivos: `components/Vault.js`, `components/VaultRoom3D.js`, `three/vaultTable.js`, `three/vault.js`, `app/globals.css`.
+
+### 4. Estado de los sellos visible
+- Cada sello tiene un estado real en `data/cases.js` (`condition`): **Intacto**, **Fisurado** o **Dañado** (antes los estados eran Intacto/Debilitado/Roto). Guía de reconocimiento en `SEAL_STATE_GUIDE`.
+- El papel lo muestra (`three/ofuda.js`, con semilla para que se vea igual en todos lados): intacto parejo; fisurado con grietas, borde rojo cortado y canto deshilachado; dañado partido y quemado, con pedazos que faltan (agujeros reales con `alphaTest`).
+- Al registrar el estado, la planilla muestra el sello desplegado y cómo se reconoce cada estado (`components/SealStatePicker.js`, compartido con `CaseFile`).
+- Registrar un estado que no coincide avisa cuál era, suma 1 de residuo y queda marcado "no coincide" en la planilla (`markSeal` en `hooks/useProgress.js`).
+
+| Expediente | Estados reales |
+| --- | --- |
+| EXP-01 | base Fisurado · nudillo Intacto · punta Intacto |
+| EXP-02 | base Intacto · punta Dañado |
+| EXP-03 | base Fisurado · medio Dañado · nudillo Intacto · punta Fisurado |
+
+### 5. Arreglos del dedo al inspeccionarlo
+- El modelo del dedo venía marcado como semitransparente (`alphaMode: BLEND`) aunque su textura es opaca: no escribía profundidad y la mitad de atrás de los sellos se veía a través. Ahora se dibuja opaco (`three/fingerModel.js`); la malla y las texturas siguen sin modificarse.
+- Al girarlo ya no atraviesa la bandeja: en cada cuadro se busca su punto más bajo (unos 700 puntos de su superficie, `three/finger.js`) y se lo deja apoyado sobre el terciopelo, como si rodara. El giro lateral se limitó para no chocar con el borde. Lo mismo en la escena del expediente (`components/Reliquary3D.js`).
+
+### 6. Final del Voto: expansión de dominio de Sukuna
+- Al tocar "Aceptar el Voto" se abre una escena a pantalla completa antes de `/final/voto` (`components/DomainExpansion.js`, montada con un portal fuera del marco de la terminal):
+  1. Oscuridad con 領域展開 (dura lo necesario para cargar los modelos: entre 3,8 y 9 s).
+  2. Se encienden las velas del altar y una luz entra por las fauces del santuario; Sukuna espera parado adentro con la cabeza gacha. Aparece 伏魔御廚子.
+  3. Levanta la cabeza y se le encienden los ojos.
+  4. Risa: la cámara se le acerca de golpe a la cara, la cabeza se sacude.
+  5. Apagón: negro total, solo quedan los ojos rojos un instante. Después pasa al final.
+- Escena 3D en `components/Domain3D.js`; modelos en `three/domainModels.js`; versión procedural de respaldo (santuario, cráneos, Sukuna, altar, charco y cielo) en `three/domain.js`.
+- Modelos de Sketchfab (CC BY 4.0) optimizados para la web con un script propio basado en `sharp`: el santuario pasó de 50 MB a 9,5 MB (texturas a 1024 px en JPEG, sin atributos de malla que no se usan, índices de 16 bits) y Sukuna pesa 1,3 MB. A Sukuna se le cambiaron los materiales "unlit" por materiales con luz y se le bajaron los brazos; la cabeza se anima con su esqueleto.
+- Los modelos se empiezan a descargar cuando aparece la oferta del Voto (`components/FinalArchive.js`).
+- Sonido sintetizado con Web Audio (`createDomainAudio()` en `lib/sound.js`): drone grave, golpe al encender el altar, risa grave con formantes y eco, y corte total en el apagón.
+- Controles: "Saltar escena" (o Escape) y "Silenciar"; sin sonido, la risa aparece como subtítulo. Con "Reducir efectos" no hay temblores ni parpadeos. El final queda guardado apenas se acepta.
+- Para llegar al Voto: 6 o más detalles ocultos y 3 o menos de residuo al abrir el EXP-00.
+
+### 7. Otros
+- `.claude/launch.json` para levantar el servidor de desarrollo desde Claude Code.
+- `yarn.lock` quedó en el repo junto a `package-lock.json`: conviene dejar uno solo antes del deploy.
+- Firestore devolvió "Missing or insufficient permissions" en una sesión de prueba: revisar que `firestore.rules` esté publicado. El login anónimo también falló (revisar que el proveedor Anonymous esté habilitado).
 
 ## 2. Inicio rápido
 
@@ -360,6 +425,8 @@ Antes de programar se hizo un análisis del prototipo 2D (errores y propuestas),
 
 - *Jujutsu Kaisen* © Gege Akutami / Shueisha. No se usa arte oficial.
 - Modelo del dedo: ["Sukuna's finger"](https://sketchfab.com/3d-models/sukunas-finger-0094c76440e3447a900797ede9bad5bf) de André Souza ([@asouza](https://sketchfab.com/asouza)), licencia [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/). Se usa sin modificar la malla ni las texturas (ver `public/models/sukuna-finger-LICENSE.txt`).
+- Santuario de la expansión de dominio: ["Malevolent_shrine jjk cc"](https://sketchfab.com/3d-models/malevolent-shrine-jjk-cc-df9a59de87944a65b8d77847d1008c4d) de Tyo155q ([@Tyo155q](https://sketchfab.com/Tyo155q)), licencia [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Adaptado: texturas reducidas y atributos sin uso eliminados (ver `public/models/malevolent-shrine-LICENSE.txt`).
+- Sukuna de la expansión de dominio: ["Sukuna Free Fire Skin"](https://sketchfab.com/3d-models/sukuna-free-fire-skin-81a53ae2b8604c40843bda9490cef39e) de rocklee.ff ([@rocklee.ff123](https://sketchfab.com/rocklee.ff123)), licencia [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Adaptado: materiales con luz, otra pose de brazos y cabeza animada (ver `public/models/sukuna-LICENSE.txt`). Es una skin del juego Free Fire: el diseño original probablemente sea de Garena.
 - Tipografías: Zen Kaku Gothic New, IBM Plex Mono y Yuji Syuku (Google Fonts, SIL OFL).
 - Three.js (MIT), Next.js (MIT), Firebase JS SDK (Apache 2.0).
 - Sonido generado con Web Audio API. Texturas generadas en canvas.

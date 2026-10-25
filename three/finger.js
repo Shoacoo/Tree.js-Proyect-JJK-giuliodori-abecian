@@ -152,3 +152,55 @@ export function fingerAxisY(x, length) {
   const t = (x + length / 2) / length;
   return Math.sin(Math.min(1, Math.max(0, t)) * Math.PI) * 0.3;
 }
+
+// Apoyo sobre una superficie: para girar el dedo sin que atraviese la mesa se toman unos
+// cientos de puntos de su superficie y en cada cuadro se busca el más bajo con la rotación
+// del momento.
+
+function isShown(object, root) {
+  for (let o = object; o && o !== root.parent; o = o.parent) if (!o.visible) return false;
+  return true;
+}
+
+/** Clave de la forma visible del dedo: cambia cuando el modelo 3D reemplaza al procedural. */
+export function fingerShapeKey(finger) {
+  let key = '';
+  finger.traverse((o) => {
+    if (o.isMesh && isShown(o, finger)) key += `${o.geometry.uuid};`;
+  });
+  return key;
+}
+
+/** Puntos de la superficie visible del dedo, en el espacio de `space` (el grupo que se gira). */
+export function sampleFingerPoints(finger, space, budget = 700) {
+  space.updateMatrixWorld(true);
+  const toSpace = new THREE.Matrix4().copy(space.matrixWorld).invert();
+  const meshes = [];
+  finger.traverse((o) => {
+    if (o.isMesh && isShown(o, finger)) meshes.push(o);
+  });
+  const total = meshes.reduce((sum, m) => sum + m.geometry.attributes.position.count, 0);
+  const step = Math.max(1, Math.floor(total / budget));
+  const points = [];
+  const v = new THREE.Vector3();
+  const m = new THREE.Matrix4();
+  meshes.forEach((mesh) => {
+    m.multiplyMatrices(toSpace, mesh.matrixWorld);
+    const pos = mesh.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i += step) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m);
+      points.push(v.x, v.y, v.z);
+    }
+  });
+  return new Float32Array(points);
+}
+
+/** Altura del punto más bajo con la matriz local del grupo (respecto de su padre). */
+export function lowestPoint(points, matrix) {
+  const e = matrix.elements;
+  let lowest = Infinity;
+  for (let i = 0; i < points.length; i += 3) {
+    lowest = Math.min(lowest, e[1] * points[i] + e[5] * points[i + 1] + e[9] * points[i + 2] + e[13]);
+  }
+  return lowest;
+}

@@ -227,18 +227,26 @@ export function ProgressProvider({ children }) {
     return { outOfOrder, ripped, leakGain };
   }, []);
 
+  // Registrar un estado que no coincide con el sello real deja el objeto mal resellado:
+  // se filtra energía. Devuelve el resultado para avisarlo en el momento.
   const markSeal = useCallback((caseId, sealId, state) => {
-    setProgress((prev) => {
-      const current = prev.cases[caseId];
-      if (!current?.seals[sealId]?.peeled) return prev;
-      return {
-        ...prev,
-        cases: {
-          ...prev.cases,
-          [caseId]: { ...current, seals: { ...current.seals, [sealId]: { ...current.seals[sealId], state } } },
-        },
-      };
-    });
+    const prev = progressRef.current;
+    const current = prev.cases[caseId];
+    const seal = CASES.find((c) => c.id === caseId)?.seals.find((s) => s.id === sealId);
+    if (!seal || !current?.seals[sealId]?.peeled || current.seals[sealId].state) return null;
+    const mismatch = Boolean(seal.condition) && seal.condition !== state;
+    const next = {
+      ...prev,
+      leak: prev.leak + (mismatch ? 1 : 0),
+      log: [...prev.log, { at: stamp(), text: `EXP-${caseId} · ${sealId} registrado: ${state}${mismatch ? ' (no coincide)' : ''}` }],
+      cases: {
+        ...prev.cases,
+        [caseId]: { ...current, seals: { ...current.seals, [sealId]: { ...current.seals[sealId], state } } },
+      },
+    };
+    progressRef.current = next;
+    setProgress(next);
+    return { mismatch, actual: seal.condition };
   }, []);
 
   const findMemory = useCallback((memoryId) => {
@@ -294,6 +302,7 @@ export function ProgressProvider({ children }) {
   }, []);
 
   const archivedCount = CASES.filter((c) => progress.cases[c.id]?.archived).length;
+  const corruption = getCorruption(progress);
 
   const value = {
     progress,
@@ -305,6 +314,7 @@ export function ProgressProvider({ children }) {
     persistence,
     firebaseEnabled,
     influence: archivedCount,
+    corruption,
     settings,
     setSettings,
     peelSeal,
@@ -331,4 +341,20 @@ export function isCaseUnlocked(progress, caseId) {
   const index = CASES.findIndex((c) => c.id === caseId);
   if (index <= 0) return index === 0;
   return Boolean(progress.cases[CASES[index - 1].id]?.archived);
+}
+
+/**
+ * Corrupción de la bóveda, de 0 a 1: cuánto se despertó la energía de Sukuna.
+ * Cada dedo pesa lo mismo: sube con cada sello retirado y termina de contar al archivarlo.
+ * El residuo (sellos arrancados o retirados fuera de orden) la empuja un poco más.
+ */
+export function getCorruption(progress) {
+  const inspected = CASES.reduce((sum, c) => {
+    const state = progress.cases[c.id];
+    if (state?.archived) return sum + 1;
+    const peeled = c.seals.filter((s) => state?.seals?.[s.id]?.peeled).length;
+    return sum + (peeled / c.seals.length) * 0.7;
+  }, 0) / CASES.length;
+  const residue = Math.min(progress.leak ?? 0, 6) / 6;
+  return Math.min(1, inspected * 0.85 + residue * 0.15);
 }
