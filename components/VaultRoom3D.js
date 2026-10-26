@@ -32,7 +32,9 @@ export const VIEWS = {
   right: { position: [3.1, 1.72, -1.15], target: [3.1, 1.42, -3.55], yaw: 0.4, pitch: 0.35 },
   table: { position: [0, 1.55, 0.75], target: [0, 0.9, -0.02], yaw: 0.6, pitch: 0.2 },
   inspect: { position: [0, 1.17, 0.27], target: [0, 0.93, -0.01], yaw: 0, pitch: 0 },
-  terminal: { position: [1.86, 1.12, 0.5], target: [2.46, 1.05, 0.3], yaw: 0.35, pitch: 0.2 },
+  // De frente a la pantalla del CRT y a unos 42 cm: el texto del menú se lee bien. Corrida
+  // un poco a la derecha para que la tarjeta de la esquina no tape la pantalla.
+  terminal: { position: [2.061, 1.065, 0.48], target: [2.468, 1.05, 0.377], yaw: 0.22, pitch: 0.14 },
 };
 
 const HOLD_MS = 900; // mantener presionado para despegar un sello con cuidado
@@ -335,6 +337,12 @@ export default function VaultRoom3D({
         goalTarget.x += shift;
         // En vertical el panel ocupa la parte de abajo: la cámara mira más abajo y el dedo sube.
         if (portrait) goalTarget.y -= 0.14 * zoom;
+      }
+      // En vertical la pantalla de la terminal no entraría de ancho: la cámara se aleja, y mira
+      // un poco más arriba para que la pantalla quede por debajo del panel de arriba.
+      if (name === 'terminal' && camera.aspect < 1) {
+        goalPos.sub(goalTarget).multiplyScalar(1.75).add(goalTarget);
+        goalTarget.y += 0.06;
       }
       currentView = name;
     };
