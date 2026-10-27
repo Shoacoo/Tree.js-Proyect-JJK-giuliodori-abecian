@@ -68,7 +68,7 @@ export default function Domain3D({ phase, reduceEffects }) {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.1;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.setClearColor(0x000000, 1);
     renderer.domElement.setAttribute('aria-hidden', 'true');
     mount.appendChild(renderer.domElement);
