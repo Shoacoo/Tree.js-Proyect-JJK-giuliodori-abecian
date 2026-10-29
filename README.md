@@ -142,6 +142,9 @@ mesa ──► "Inspeccionar de cerca": sellos, residuos, planilla ──► arc
                      "Nueva inspección" (conserva los finales desbloqueados)
 ```
 
+La primera partida es un **recorrido guiado** (`data/tour.js`, `hooks/useTour.js`, `components/TourCard.js`): 19 carteles que van de la bóveda a la terminal, recorren cada pestaña del sistema y terminan en EXP-01. Hasta completar cada paso, lo que viene después queda bloqueado (botones, clicks en 3D y pestañas). El paso se guarda en el progreso (`progress.tour`); se puede saltar desde el cartel y repetir desde Formularios.
+
+
 1. **Intro:** una tarjeta con la premisa y el botón "Entrar a la bóveda" (se recuerda por sesión).
 2. **Bóveda:** la persona recorre la sala, busca los dedos en las cajas, abre la caja y lleva el dedo a la mesa.
 3. **Terminal:** se identifica (anónimo, Google o email). Desde la pantalla también puede ver el lote, el registro, la barrera y el protocolo.
@@ -413,7 +416,7 @@ three/
   fonts.js                nombres reales de las fuentes de next/font para el canvas
   fingerModel.js          carga del .glb del dedo y ajuste de los sellos al modelo
   finger.js               dedo procedural (respaldo) y apoyo del dedo sobre la mesa
-  ofuda.js                papel de los sellos con su estado (grietas, desgarros)
+  ofuda.js                envoltura del dedo (tiras con símbolos, un tramo por sello) y ofudas de papel
   auraShader.js particles.js scenery.js quality.js optimize.js
 data/                     cases.js, endings.js
 hooks/                    useProgress.js (estado narrativo y persistencia), useQuality.js
@@ -453,7 +456,7 @@ firestore.rules
 ## 16. Cómo extender el proyecto
 
 - **Cambiar textos, pistas o flashbacks:** todo está en `data/cases.js`. Un sello nuevo necesita `id`, `x` (posición en cm sobre el dedo, entre −L/2 y L/2), `ink`, `condition`, `inscription` y `flashback.hidden` con un `id` único. Actualizar también `order`.
-- **Cambiar el estado de un sello o su aspecto:** `condition` en `data/cases.js`; el dibujo de las grietas y desgarros está en `drawOfuda()` de `three/ofuda.js`; la guía de reconocimiento en `SEAL_STATE_GUIDE`.
+- **Cambiar el estado de un sello o su aspecto:** `condition` en `data/cases.js`; la envoltura del dedo está en `drawWrap()` y `sealSpan()` de `three/ofuda.js` (las grietas y desgarros, en `damage()`); la guía de reconocimiento en `SEAL_STATE_GUIDE`.
 - **Que registrar mal un estado no penalice:** quitar el `+1` de `leak` en `markSeal` (`hooks/useProgress.js`).
 - **Agregar un expediente:** sumarlo a `CASES` con una `box` libre de `VAULT_BOXES` y agregar el `id` a `generateStaticParams` (se toma de `CASES`). La caja muestra el dedo y brilla sola, porque `getCaseByBox` la reconoce.
 - **Ajustar la atmósfera:** la fórmula está en `getCorruption()` y los efectos en el bucle de `VaultRoom3D.js` (colores `CLEAN` y `CURSED`, niebla, luces, miasma, latido).

@@ -9,6 +9,7 @@ import Shell, { Cells, Key, ScreenHead, Tag, handle, useHotkeys } from '@/compon
 import { MEMORY_TOTAL, SETTING, getCase, nextCaseId } from '@/data/cases';
 import { isCaseUnlocked, useProgress } from '@/hooks/useProgress';
 import { useQuality } from '@/hooks/useQuality';
+import { useTour } from '@/hooks/useTour';
 import { LEAK_LIMIT, shortPlace } from '@/lib/readings';
 import { downgradeAutoQuality } from '@/three/quality';
 import { playPeel } from '@/lib/sound';
@@ -55,6 +56,9 @@ export default function CaseFile({ caseId }) {
   const activeSeal = peeled.find((s) => !sealState[s.id].state) ?? null;
   const allDone = marked.length === data.seals.length;
   const sealsById = Object.fromEntries(data.seals.map((s) => [s.id, s]));
+  const tour = useTour({ where: 'case', caseId, peeled: peeled.length, marked: marked.length });
+  // En el recorrido, los sellos se retiran recién cuando el cartel lo pide.
+  const canPeel = tour.reached('retirar');
 
   useEffect(() => {
     if (hydrated && !unlocked) router.replace('/indice');
@@ -62,6 +66,7 @@ export default function CaseFile({ caseId }) {
 
   // Reliquary3D lee los callbacks desde una ref: no hace falta memorizarlos.
   const handlePeel = (sealId, careful) => {
+    if (!canPeel) return;
     const result = peelSeal(caseId, sealId, careful);
     if (!result) return;
     if (settings.sound) playPeel(result.ripped);
@@ -117,11 +122,16 @@ export default function CaseFile({ caseId }) {
   );
 
   return (
-    <Shell active="lote" hints="[+/−] Zoom  [L] Luz  [1/2/3] Estado del papel  [A] Archivar  [ESC] Volver al lote">
+    <Shell
+      active="lote"
+      hints="[+/−] Zoom  [L] Luz  [1/2/3] Estado del papel  [A] Archivar  [ESC] Volver al lote"
+      tour={tour}
+      tourPaused={Boolean(fb)}
+    >
       <ScreenHead eyebrow={`Expediente · ${SETTING.lot}`} title={`${data.code} · ${shortPlace(data.place)}`} />
       <div className="case">
         <div className="case__main">
-          <section className="viewport" aria-label="Mesa de inspección">
+          <section className="viewport" aria-label="Mesa de inspección" data-tour="viewport">
             {quality ? (
               <Reliquary3D
                 key={quality}
@@ -177,7 +187,7 @@ export default function CaseFile({ caseId }) {
             ) : null}
           </section>
 
-          <div className="seal-rows" role="group" aria-label="Sellos (controles sin 3D)">
+          <div className="seal-rows" role="group" aria-label="Sellos (controles sin 3D)" data-tour="seals">
             {data.seals.map((seal) => {
               const state = sealState[seal.id];
               return (
@@ -192,7 +202,7 @@ export default function CaseFile({ caseId }) {
                         Releer residuo
                       </Key>
                     ) : (
-                      <Key className="key--sm" onClick={() => handlePeel(seal.id, true)}>
+                      <Key className="key--sm" onClick={() => handlePeel(seal.id, true)} disabled={!canPeel}>
                         Retirar
                       </Key>
                     )}
@@ -221,7 +231,7 @@ export default function CaseFile({ caseId }) {
         </div>
 
         <aside className="case__side">
-          <section className="panel seal-panel" aria-live="polite" aria-label="Sello activo">
+          <section className="panel seal-panel" aria-live="polite" aria-label="Sello activo" data-tour="seal-state">
             {activeSeal ? (
               <>
                 <span className="seal-panel__kicker">{activeSeal.label}</span>
@@ -249,7 +259,7 @@ export default function CaseFile({ caseId }) {
             )}
           </section>
 
-          <section className="panel readout" aria-label="Lecturas">
+          <section className="panel readout" aria-label="Lecturas" data-tour="readings">
             <div className="readout__row">
               <span>memoria</span>
               <Cells value={progress.memory.length} max={MEMORY_TOTAL} />
@@ -332,7 +342,7 @@ export default function CaseFile({ caseId }) {
             </table>
           </details>
 
-          <Key k="A" variant="fill" className="archive-key" disabled={!allDone} onClick={archive}>
+          <Key k="A" variant="fill" className="archive-key" disabled={!allDone} onClick={archive} data-tour="archive">
             {caseProgress.archived ? 'Archivado · volver al lote' : 'Archivar expediente'}
           </Key>
         </aside>

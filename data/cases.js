@@ -316,8 +316,8 @@ export const HIDDEN_BOX = 'B3-11';
 // Estado de un sello y cómo se reconoce a simple vista (la planilla de control lo pide).
 export const SEAL_STATES = ['Intacto', 'Fisurado', 'Dañado'];
 export const SEAL_STATE_GUIDE = {
-  Intacto: 'Papel parejo y claro, borde rojo entero, tinta nítida.',
-  Fisurado: 'Grietas finas que cruzan el papel, borde rojo cortado, canto deshilachado.',
+  Intacto: 'Papel parejo y claro, filetes enteros, símbolos nítidos.',
+  Fisurado: 'Grietas finas que cruzan el papel, canto deshilachado.',
   Dañado: 'Papel partido y quemado, con pedazos que faltan: se ve el dedo por debajo.',
 };
 

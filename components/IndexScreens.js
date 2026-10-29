@@ -66,7 +66,7 @@ function lotRows(progress, finalUnlocked) {
 
 const STATUS_TONE = { archivado: 'normal', pendiente: 'normal', bloqueado: 'muted', vacía: 'muted', revisar: 'active' };
 
-export function Desk({ progress, operator, finalUnlocked, onSignOut }) {
+export function Desk({ progress, operator, finalUnlocked, onSignOut, canOpen = true }) {
   const [tab, setTab] = useState('orders');
   const [received, setReceived] = useState(false);
   const archived = CASES.filter((c) => progress.cases[c.id].archived).length;
@@ -157,7 +157,7 @@ export function Desk({ progress, operator, finalUnlocked, onSignOut }) {
       ) : (
         <div className="case-list">
           {lotRows(progress, finalUnlocked)
-            .filter((row) => row.href)
+            .filter((row) => row.href && canOpen)
             .map((row) => (
               <Link key={row.id} href={row.href} className={`panel panel--tight${row.alert ? ' panel--alert' : ''}`}>
                 <span>
@@ -172,9 +172,10 @@ export function Desk({ progress, operator, finalUnlocked, onSignOut }) {
   );
 }
 
-export function Lot({ progress, finalUnlocked }) {
+// canOpen: en el recorrido guiado, los expedientes se abren recién en el paso que lo pide.
+export function Lot({ progress, finalUnlocked, canOpen = true }) {
   const router = useRouter();
-  const rows = lotRows(progress, finalUnlocked);
+  const rows = lotRows(progress, finalUnlocked).map((r) => (canOpen ? r : { ...r, href: null }));
   const fallback = Math.max(0, rows.findIndex((r) => r.status === 'pendiente' || r.status === 'revisar'));
   const [picked, setPicked] = useState(null);
   const [marked, setMarked] = useState([]);
@@ -208,6 +209,7 @@ export function Lot({ progress, finalUnlocked }) {
             role="option"
             aria-selected={i === index}
             className={`lot__row lot__grid${i === index ? ' is-selected' : ''}${!r.href && !r.alert ? ' is-locked' : ''}${r.alert ? ' is-alert' : ''}${marked.includes(r.id) ? ' is-marked' : ''}`}
+            data-tour={`case-${r.id}`}
             onClick={() => setPicked(i)}
             onDoubleClick={() => r.href && router.push(r.href)}
           >
@@ -226,7 +228,7 @@ export function Lot({ progress, finalUnlocked }) {
         <h2 className="lot__title">{row.title}</h2>
         <p className="lot__desc">{row.desc}</p>
         <div className="keys">
-          <Key k="↵" variant={row.alert ? 'red' : 'fill'} href={row.href ?? undefined} disabled={!row.href}>
+          <Key k="↵" variant={row.alert ? 'red' : 'fill'} href={row.href ?? undefined} disabled={!row.href} data-tour={`case-${row.id}`}>
             {row.archived ? 'Revisar expediente' : 'Abrir expediente'}
           </Key>
           <Key k="M" aria-pressed={isMarked} onClick={toggleMark}>
@@ -435,12 +437,13 @@ export function Protocol({ operator }) {
   );
 }
 
-export function Forms({ progress, operator, settings, setSettings, quality, onSignOut, onReset }) {
+export function Forms({ progress, operator, settings, setSettings, quality, onSignOut, onReset, onTour }) {
   const toggle = (key) => setSettings((s) => ({ ...s, [key]: !s[key] }));
   useHotkeys({
     s: () => toggle('sound'),
     r: () => toggle('reduceEffects'),
     q: quality.cycle,
+    t: onTour,
   });
   const endings = Object.values(ENDINGS);
 
@@ -522,6 +525,9 @@ export function Forms({ progress, operator, settings, setSettings, quality, onSi
           </h2>
           <div className="keys" style={{ marginTop: 8 }}>
             <Key href="/">Volver a la bóveda</Key>
+            <Key k="T" onClick={onTour}>
+              Repetir el recorrido
+            </Key>
             <Key href="/creditos">Créditos</Key>
             <Key variant="alert" onClick={onSignOut}>
               Cerrar sesión

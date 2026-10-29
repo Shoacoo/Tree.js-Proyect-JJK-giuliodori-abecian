@@ -133,7 +133,7 @@ export default function Reliquary3D({
 
     const bands = new Map();
     caseData.seals.forEach((seal) => {
-      const band = createSealBand(seal, length);
+      const band = createSealBand(seal, length, caseData.seals);
       band.userData.ink = seal.ink;
       relic.add(band);
       bands.set(seal.id, band);

@@ -17,7 +17,8 @@ import { firebaseEnabled, getFirebase } from '@/lib/firebase';
 const STORAGE_KEY = 'contencion:progress:v1';
 const LOCAL_OPERATOR_KEY = 'contencion:local-operator';
 
-export function createInitialProgress(endingsUnlocked = []) {
+// tour: paso del recorrido guiado (data/tour.js). No se reinicia con una partida nueva.
+export function createInitialProgress(endingsUnlocked = [], tour = 0) {
   return {
     cases: Object.fromEntries(
       CASES.map((c) => [
@@ -34,6 +35,7 @@ export function createInitialProgress(endingsUnlocked = []) {
     decisions: {},
     ending: null,
     endingsUnlocked,
+    tour,
   };
 }
 
@@ -278,7 +280,11 @@ export function ProgressProvider({ children }) {
   }, []);
 
   const resetRun = useCallback(() => {
-    setProgress((prev) => createInitialProgress(prev.endingsUnlocked));
+    setProgress((prev) => createInitialProgress(prev.endingsUnlocked, prev.tour));
+  }, []);
+
+  const setTour = useCallback((step) => {
+    setProgress((prev) => (prev.tour === step ? prev : { ...prev, tour: step }));
   }, []);
 
   const auth = useMemo(() => {
@@ -324,6 +330,7 @@ export function ProgressProvider({ children }) {
     decide,
     finish,
     resetRun,
+    setTour,
     auth,
   };
 

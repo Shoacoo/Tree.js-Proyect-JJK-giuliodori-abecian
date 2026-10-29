@@ -296,7 +296,7 @@ function createTeacup() {
 // Pila de ofudas nuevos para volver a sellar.
 function createOfudaStack() {
   const group = new THREE.Group();
-  const tex = createOfudaTexture({ text: '封印', vertical: true });
+  const tex = createOfudaTexture({ text: '封印', torn: false });
   const top = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 });
   const sideMat = new THREE.MeshStandardMaterial({ color: 0xe3d4a6, roughness: 1 });
   for (let i = 0; i < 3; i += 1) {
@@ -566,7 +566,7 @@ export function createTableRelic(caseData) {
   group.add(finger);
   const bands = new Map();
   caseData.seals.forEach((seal) => {
-    const band = createSealBand(seal, caseData.length);
+    const band = createSealBand(seal, caseData.length, caseData.seals);
     band.userData.type = 'seal';
     band.userData.ink = seal.ink;
     group.add(band);

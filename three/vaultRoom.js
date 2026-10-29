@@ -31,7 +31,7 @@ let wallOfudaMaterials = null;
 function wallOfudas() {
   if (!wallOfudaMaterials) {
     wallOfudaMaterials = ['封印', '禁', '急急如律令'].map(
-      (text) => new THREE.MeshStandardMaterial({ map: createOfudaTexture({ text, vertical: true }), roughness: 0.95, side: THREE.DoubleSide }),
+      (text) => new THREE.MeshStandardMaterial({ map: createOfudaTexture({ text }), alphaTest: 0.5, roughness: 0.95, side: THREE.DoubleSide }),
     );
   }
   return wallOfudaMaterials;
@@ -187,8 +187,8 @@ function createVaultDoor() {
 
   // Ofudas en cruz sobre la hoja.
   const strip = (text, angle, len) => {
-    const tex = createOfudaTexture({ text, vertical: true });
-    const m = mesh(new THREE.PlaneGeometry(0.13, len), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, side: THREE.DoubleSide }));
+    const tex = createOfudaTexture({ text });
+    const m = mesh(new THREE.PlaneGeometry(0.13, len), new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.5, roughness: 0.95, side: THREE.DoubleSide }));
     m.rotation.z = angle;
     m.position.z = 0.205;
     return m;

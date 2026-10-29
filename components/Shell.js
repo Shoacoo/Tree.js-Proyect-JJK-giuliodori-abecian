@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
+import TourCard from '@/components/TourCard';
 import { CASES } from '@/data/cases';
 import { useProgress } from '@/hooks/useProgress';
 import { handle } from '@/lib/readings';
@@ -190,7 +191,8 @@ function MenuLink({ href, children, ...rest }) {
 
 const DEFAULT_HINTS = '[TAB] Navegar  [ENTER] Seleccionar  [ESC] Cerrar';
 
-export default function Shell({ active, children, hints = DEFAULT_HINTS, status }) {
+// tour: el recorrido guiado de la pantalla (useTour). Bloquea las pestañas que todavía no se mostraron.
+export default function Shell({ active, children, hints = DEFAULT_HINTS, status, tour, tourPaused = false }) {
   const pathname = usePathname();
   const { progress, signedIn, operator, influence, settings, hydrated } = useProgress();
   const onIndex = pathname === '/indice';
@@ -210,27 +212,43 @@ export default function Shell({ active, children, hints = DEFAULT_HINTS, status 
           B3
         </span>
         <nav className="shell__menu" aria-label="Menú del sistema">
-          {items.map((item) => (
-            <MenuLink
-              key={item.id}
-              href={item.href}
-              className={`shell__item${active === item.id ? ' is-active' : ''}`}
-              aria-current={active === item.id ? 'page' : undefined}
-            >
-              <span>{item.label}</span>
-              {item.count ? <span className="shell__count">{item.count}</span> : null}
-            </MenuLink>
-          ))}
+          {items.map((item) =>
+            tour?.tabLocked(item.id) && active !== item.id ? (
+              <span key={item.id} className="shell__item is-locked" aria-disabled="true" title="Se desbloquea más adelante en el recorrido">
+                <span>{item.label}</span>
+                <span className="shell__count">bloq.</span>
+              </span>
+            ) : (
+              <MenuLink
+                key={item.id}
+                href={item.href}
+                className={`shell__item${active === item.id ? ' is-active' : ''}`}
+                aria-current={active === item.id ? 'page' : undefined}
+                data-tour={`menu-${item.id}`}
+              >
+                <span>{item.label}</span>
+                {item.count ? <span className="shell__count">{item.count}</span> : null}
+              </MenuLink>
+            ),
+          )}
         </nav>
         <div className="shell__foot">
           <span>{OS_VERSION}</span>
           <span className="shell__icons">
-            <MenuLink href={iconHref('ayuda')} title="Ayuda" aria-label="Ayuda">
-              [?]
-            </MenuLink>
-            <MenuLink href={iconHref('formularios')} title="Formularios y ajustes" aria-label="Formularios y ajustes">
-              [⚙]
-            </MenuLink>
+            {tour?.tabLocked('ayuda') ? (
+              <span aria-disabled="true">[?]</span>
+            ) : (
+              <MenuLink href={iconHref('ayuda')} title="Ayuda" aria-label="Ayuda">
+                [?]
+              </MenuLink>
+            )}
+            {tour?.tabLocked('formularios') ? (
+              <span aria-disabled="true">[⚙]</span>
+            ) : (
+              <MenuLink href={iconHref('formularios')} title="Formularios y ajustes" aria-label="Formularios y ajustes">
+                [⚙]
+              </MenuLink>
+            )}
             <Link href="/" title="Salir a la bóveda" aria-label="Salir a la bóveda">
               [⏻]
             </Link>
@@ -246,6 +264,7 @@ export default function Shell({ active, children, hints = DEFAULT_HINTS, status 
           <span className="shell__op">{signedIn ? handle(operator) : 'sin sesión'}</span>
         </footer>
       </div>
+      {tour ? <TourCard tour={tour} paused={tourPaused} /> : null}
       <div className="scanlines" aria-hidden="true" />
     </div>
   );

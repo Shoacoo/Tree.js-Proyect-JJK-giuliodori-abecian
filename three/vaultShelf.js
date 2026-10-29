@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { createAuraMaterial } from './auraShader';
 import { createFinger } from './finger';
-import { applyFingerModel } from './fingerModel';
+import { applyFingerModel, fitBandToProfile } from './fingerModel';
 import { font } from './fonts';
-import { createOfudaTexture } from './ofuda';
+import { createOfudaTexture, createSealBand } from './ofuda';
 import { boxWoodTextures, glowTexture, paintedMetalTextures, paperCanvas, plankTextures, rng } from './proctex';
 import { ROOM, merged, mesh } from './vaultRoom';
 
@@ -218,8 +218,8 @@ function createBox(code, content, { special = false, hidden = false } = {}) {
   let ofudaMat = null;
   if (special || hidden) {
     // Ofuda que sella la tapa y baja por el frente.
-    const ofuda = createOfudaTexture({ text: hidden ? '禁忌' : '封印', vertical: true });
-    ofudaMat = new THREE.MeshStandardMaterial({ map: ofuda, roughness: 0.9, side: THREE.DoubleSide, emissive: 0x9e1f17, emissiveIntensity: 0 });
+    const ofuda = createOfudaTexture({ text: hidden ? '禁忌' : '封印' });
+    ofudaMat = new THREE.MeshStandardMaterial({ map: ofuda, alphaTest: 0.5, roughness: 0.9, side: THREE.DoubleSide, emissive: 0x9e1f17, emissiveIntensity: 0 });
     const top = mesh(new THREE.PlaneGeometry(0.075, ld * 0.7), ofudaMat);
     top.rotation.x = -Math.PI / 2;
     top.position.set(0.09, 0.0255, cz);
@@ -249,7 +249,7 @@ function createBox(code, content, { special = false, hidden = false } = {}) {
     // Ofuda viejo, descolorido.
     const faded = mesh(
       new THREE.PlaneGeometry(0.06, ld * 0.5),
-      new THREE.MeshStandardMaterial({ map: createOfudaTexture({ text: '封', vertical: true }), roughness: 1, transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
+      new THREE.MeshStandardMaterial({ map: createOfudaTexture({ text: '封' }), alphaTest: 0.5, roughness: 1, transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
     );
     faded.rotation.set(-Math.PI / 2, 0, (r() - 0.5) * 0.6);
     faded.position.set((r() - 0.5) * 0.2, 0.0252, cz);
@@ -353,13 +353,21 @@ function createBoxedFinger(caseData) {
     o.castShadow = false;
   });
   group.add(finger);
+  // Envuelto entero en sus tiras de papel, como se guarda (el cuarto dedo no tiene sellos).
+  const bands = (caseData.seals ?? []).map((seal) => {
+    const band = createSealBand(seal, caseData.length, caseData.seals);
+    band.castShadow = false;
+    group.add(band);
+    return band;
+  });
   const aura = new THREE.Mesh(skin.geometry, createAuraMaterial());
   group.add(aura);
   let modelRequested = false;
   const loadModel = () => {
     if (modelRequested) return null;
     modelRequested = true;
-    return applyFingerModel(finger, aura, caseData.length).then(() => {
+    return applyFingerModel(finger, aura, caseData.length).then((profile) => {
+      if (profile) bands.forEach((band) => fitBandToProfile(band, profile));
       finger.traverse((o) => {
         o.castShadow = false;
       });

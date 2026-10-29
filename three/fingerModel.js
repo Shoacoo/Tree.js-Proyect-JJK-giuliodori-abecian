@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { WRAP_RING, buildWrapGeometry } from './ofuda';
 
 // Modelo "Sukuna's finger" de André Souza (CC BY-NC-ND 4.0). Se usa tal cual:
 // solo se ubica, rota y escala; la malla y las texturas no se modifican. Sí se dibuja
@@ -114,7 +115,6 @@ export async function applyFingerModel(finger, aura, length) {
 }
 
 const ANGLE_BINS = 48; // sectores para medir la sección del dedo
-const RING_POINTS = 96; // puntos del anillo de papel
 const BAND_GAP = 0.04; // separación entre el papel y la piel (cm)
 const RADIUS_PERCENTILE = 0.88; // ignora las puntas sueltas de la malla
 
@@ -205,62 +205,96 @@ function wrapSection(profile, x0, x1) {
   return { cy, cz, hull: convexHull(outline) };
 }
 
-// Reemplaza la banda cilíndrica por un anillo de papel que sigue la sección real del modelo.
-// La geometría queda en el espacio local de la banda; la escala de la malla vuelve a 1.
-export function fitBandToProfile(band, profile) {
-  if (!profile?.points) return;
-  const width = band.geometry.parameters?.height ?? 1.15;
-  const x = band.position.x;
-  const section = wrapSection(profile, x - width / 2, x + width / 2);
-  if (!section) return;
-  const { cy, cz, hull } = section;
+// Superficie del modelo a lo largo del dedo, medida una sola vez: cada STEP cm, el centro
+// de la sección y la distancia al borde en cada punto alrededor (WRAP_RING).
+const FIELD_STEP = 0.25;
+const WRAP_GAP = 0.05; // aire extra entre la envoltura y la piel (cm)
 
-  // Contorno remuestreado: empieza en +Z y gira hacia +Y, como el CylinderGeometry rotado.
-  const ring = [];
-  for (let i = 0; i <= RING_POINTS; i += 1) {
-    const angle = (i / RING_POINTS) * Math.PI * 2;
-    const dy = Math.sin(angle);
-    const dz = Math.cos(angle);
-    const r = hullDistance(hull, cy, cz, dy, dz) + BAND_GAP;
-    ring.push([dy * r, dz * r, dy, dz]);
+function modelField(profile) {
+  if (profile.field) return profile.field;
+  const { points } = profile;
+  let min = Infinity;
+  let max = -Infinity;
+  for (let i = 0; i < points.length; i += 3) {
+    min = Math.min(min, points[i]);
+    max = Math.max(max, points[i]);
   }
-  const lengths = [0];
-  for (let i = 1; i < ring.length; i += 1) {
-    lengths.push(lengths[i - 1] + Math.hypot(ring[i][0] - ring[i - 1][0], ring[i][1] - ring[i - 1][1]));
+  const rows = [];
+  for (let x = min; x <= max + 1e-6; x += FIELD_STEP) {
+    const section = wrapSection(profile, x - FIELD_STEP, x + FIELD_STEP);
+    if (!section) {
+      rows.push(null);
+      continue;
+    }
+    const { cy, cz, hull } = section;
+    const radii = [];
+    for (let a = 0; a < WRAP_RING; a += 1) {
+      const angle = (a / WRAP_RING) * Math.PI * 2;
+      radii.push(hullDistance(hull, cy, cz, Math.sin(angle), Math.cos(angle)) + BAND_GAP);
+    }
+    rows.push({ cy, cz, radii });
   }
-  const perimeter = lengths[lengths.length - 1];
-
-  const positions = [];
-  const normals = [];
-  const uvs = [];
-  [-width / 2, width / 2].forEach((edge, row) => {
-    ring.forEach(([y, z, ny, nz], i) => {
-      positions.push(edge, y, z);
-      normals.push(0, ny, nz);
-      uvs.push(lengths[i] / perimeter, row === 0 ? 1 : 0);
+  // Las puntas con pocos vértices copian la sección vecina, achicada.
+  for (let pass = 0; pass < 2; pass += 1) {
+    const order = pass ? [...rows.keys()].reverse() : [...rows.keys()];
+    let last = null;
+    order.forEach((i) => {
+      if (rows[i]) last = rows[i];
+      else if (last) rows[i] = { ...last, radii: last.radii.map((r) => r * 0.85) };
     });
-  });
-  const indices = [];
-  const n = ring.length;
-  for (let i = 0; i < n - 1; i += 1) {
-    const a = i;
-    const b = i + 1;
-    const c = n + i + 1;
-    const d = n + i;
-    indices.push(a, d, b, b, d, c);
   }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.setIndex(indices);
-  geometry.computeBoundingSphere();
-  geometry.parameters = { height: width };
+  // Sin picos: cada radio se limita respecto de la mediana de su anillo y se suaviza con
+  // los anillos vecinos (los pliegues y la uña no deben levantar el papel).
+  const clamped = rows.map((row) => {
+    if (!row) return row;
+    const ref = [...row.radii].sort((a, b) => a - b)[Math.floor(row.radii.length * 0.7)];
+    return { ...row, radii: row.radii.map((r) => Math.min(r, ref * 1.15)) };
+  });
+  const smooth = clamped.map((row, i) => {
+    if (!row) return row;
+    const near = [clamped[i - 1], row, clamped[i + 1]].filter(Boolean);
+    return {
+      cy: near.reduce((s, n) => s + n.cy, 0) / near.length,
+      cz: near.reduce((s, n) => s + n.cz, 0) / near.length,
+      // El papel no entra en la piel: nunca queda por debajo del radio medido.
+      radii: row.radii.map((r, a) => {
+        const around = [a - 1, a, a + 1].map((k) => (k + WRAP_RING) % WRAP_RING);
+        let sum = 0;
+        near.forEach((n) => around.forEach((k) => (sum += n.radii[k])));
+        return Math.max(r, sum / (near.length * around.length)) + WRAP_GAP;
+      }),
+    };
+  });
+  profile.field = { min, rows: smooth };
+  return profile.field;
+}
 
+function modelSample(field) {
+  const { min, rows } = field;
+  return (x, a, gap) => {
+    const f = Math.min(rows.length - 1, Math.max(0, (x - min) / FIELD_STEP));
+    const i = Math.min(rows.length - 2, Math.floor(f));
+    const k = f - i;
+    const p = rows[i];
+    const q = rows[i + 1] ?? p;
+    const cy = p.cy + (q.cy - p.cy) * k;
+    const cz = p.cz + (q.cz - p.cz) * k;
+    if (a < 0) return [cy, cz];
+    const r = p.radii[a] + (q.radii[a] - p.radii[a]) * k + gap;
+    const angle = (a / WRAP_RING) * Math.PI * 2;
+    return [cy + Math.sin(angle) * r, cz + Math.cos(angle) * r];
+  };
+}
+
+// Rehace el tramo de envoltura para que siga la forma real del modelo.
+export function fitBandToProfile(band, profile) {
+  if (!profile?.points || !band.userData.span) return;
+  const field = modelField(profile);
+  if (!field.rows.some(Boolean)) return;
+  const { geometry, center } = buildWrapGeometry(band.userData.span, modelSample(field));
   band.geometry.dispose();
   band.geometry = geometry;
   band.scale.set(1, 1, 1);
-  band.position.set(x, cy, cz);
-  band.userData.baseY = cy;
-  band.userData.radius = Math.max(...ring.map(([y, z]) => Math.hypot(y, z)));
+  band.position.set(...center);
+  band.userData.baseY = center[1];
 }

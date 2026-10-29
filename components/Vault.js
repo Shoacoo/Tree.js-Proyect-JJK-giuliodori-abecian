@@ -6,10 +6,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import InspectionNotes from '@/components/InspectionNotes';
 import InspectionPanel from '@/components/InspectionPanel';
 import MangaFlashback from '@/components/MangaFlashback';
+import TourCard from '@/components/TourCard';
 import { Key, PersistenceBadge, ScreenHead, useHotkeys } from '@/components/Shell';
 import { CASES, HIDDEN_BOX, MEMORY_TOTAL, VAULT_BOXES, getCase, getCaseByBox, nextCaseId } from '@/data/cases';
 import { isCaseUnlocked, useProgress } from '@/hooks/useProgress';
 import { qualityLabel, useQuality } from '@/hooks/useQuality';
+import { useTour } from '@/hooks/useTour';
 import { playPeel, setHumDread, startHum, stopHum } from '@/lib/sound';
 import { downgradeAutoQuality } from '@/three/quality';
 
@@ -84,6 +86,19 @@ export default function Vault({ intro, legal }) {
   const [flashbackId, setFlashbackId] = useState(null);
   const [notesTab, setNotesTab] = useState(null);
 
+  // Recorrido guiado: lo que todavía no se mostró queda bloqueado, en 3D y en los botones.
+  const tour = useTour({ where: 'vault', view, openBox, tableCaseId, signedIn });
+  const tourRef = useRef(tour);
+  useEffect(() => {
+    tourRef.current = tour;
+  });
+  const tourBlocks = useCallback((action) => {
+    const current = tourRef.current;
+    if (current.allows(action)) return false;
+    setMessage({ text: `Recorrido · ${current.step.title}. Seguí el cartel para continuar.` });
+    return true;
+  }, []);
+
   // Recordar qué dedo quedó sobre la mesa y si ya se pasó la intro.
   useEffect(() => {
     try {
@@ -136,20 +151,26 @@ export default function Vault({ intro, legal }) {
   if (allArchived) boxStatus[HIDDEN_BOX] = 'revealed';
 
   const navigate = useCallback((next) => {
+    if (tourBlocks(`navigate:${next}`)) return;
     setView(next);
     setMessage(null);
     if (next !== 'left' && next !== 'right') setOpenBox(null);
-  }, []);
+  }, [tourBlocks]);
 
-  const clickBox = useCallback((code) => {
-    setOpenBox((current) => (current === code ? null : code));
-    setMessage(null);
-  }, []);
+  const clickBox = useCallback(
+    (code) => {
+      if (tourBlocks(`box:${code}`)) return;
+      setOpenBox((current) => (current === code ? null : code));
+      setMessage(null);
+    },
+    [tourBlocks],
+  );
 
   const activate = useCallback(
     (action) => {
       // La pantalla de la terminal distingue sus botones con un sufijo ("login#enter").
       const what = action.split('#')[0];
+      if (tourBlocks(`activate:${what}`)) return;
       if (what === 'terminal' || what === 'index') {
         router.push(signedIn ? '/indice' : '/acceso');
         return;
@@ -195,10 +216,11 @@ export default function Vault({ intro, legal }) {
       setMessage(null);
       setHint('idle');
     },
-    [router, signedIn, tableCaseId, progress],
+    [router, signedIn, tableCaseId, progress, tourBlocks],
   );
 
   const carry = (caseId) => {
+    if (tourBlocks(`carry:${caseId}`)) return;
     setTableCaseId(caseId);
     setOpenBox(null);
     setView('table');
@@ -438,7 +460,7 @@ export default function Vault({ intro, legal }) {
             <p>{openInfo.body}</p>
             <div className="row">
               {openInfo.canCarry ? (
-                <button type="button" className="btn btn--primary" onClick={() => carry(openInfo.caseId)}>
+                <button type="button" className="btn btn--primary" onClick={() => carry(openInfo.caseId)} data-tour="carry">
                   Llevar a la mesa
                 </button>
               ) : null}
@@ -508,7 +530,7 @@ export default function Vault({ intro, legal }) {
         </div>
       ) : null}
 
-      <nav className="vault__nav" aria-label="Moverse por la sala sin 3D">
+      <nav className="vault__nav" aria-label="Moverse por la sala sin 3D" data-tour="vault-nav">
         <span className="label">MOVERSE SIN 3D</span>
         {[
           ['overview', 'Centro'],
@@ -517,7 +539,14 @@ export default function Vault({ intro, legal }) {
           ['table', 'Mesa'],
           ['terminal', 'Terminal'],
         ].map(([id, label]) => (
-          <button key={id} type="button" className={`vault__chip ${view === id ? 'is-active' : ''}`} aria-current={view === id} onClick={() => navigate(id)}>
+          <button
+            key={id}
+            type="button"
+            className={`vault__chip ${view === id ? 'is-active' : ''}`}
+            aria-current={view === id}
+            onClick={() => navigate(id)}
+            data-tour={`nav-${id}`}
+          >
             {label}
           </button>
         ))}
@@ -536,7 +565,13 @@ export default function Vault({ intro, legal }) {
             {shelfCodes
               .filter((code) => code !== HIDDEN_BOX || boxStatus[HIDDEN_BOX] === 'revealed')
               .map((code) => (
-                <button key={code} type="button" className={`vault__chip ${openBox === code ? 'is-active' : ''}`} onClick={() => clickBox(code)}>
+                <button
+                  key={code}
+                  type="button"
+                  className={`vault__chip ${openBox === code ? 'is-active' : ''}`}
+                  onClick={() => clickBox(code)}
+                  data-tour={`box-${code}`}
+                >
                   {code}
                   {getCaseByBox(code) || (code === HIDDEN_BOX && boxStatus[HIDDEN_BOX]) ? ' ·' : ''}
                 </button>
@@ -571,6 +606,8 @@ export default function Vault({ intro, legal }) {
           </div>
         </div>
       ) : null}
+
+      <TourCard tour={tour} placement="vault" paused={!entered || no3d || Boolean(flashbackId) || confirmExit} />
 
       {no3d ? (
         <div className="vault__intro vault__intro--start">

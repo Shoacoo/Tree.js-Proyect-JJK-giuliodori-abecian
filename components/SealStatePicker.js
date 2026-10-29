@@ -6,8 +6,8 @@ import { SEAL_STATES, SEAL_STATE_GUIDE } from '@/data/cases';
 
 // Lo que se ve en el papel, para quien no puede ver la imagen.
 const VISIBLE = {
-  Intacto: 'El papel está parejo y el borde rojo, entero.',
-  Fisurado: 'Grietas finas cruzan el papel, el borde rojo está cortado y el canto, deshilachado.',
+  Intacto: 'El papel está parejo y los símbolos, nítidos.',
+  Fisurado: 'Grietas finas cruzan el papel y el canto está deshilachado.',
   Dañado: 'El papel está partido y quemado en dos lugares y le faltan pedazos.',
 };
 
