@@ -128,6 +128,25 @@ export default function VaultRoom3D({
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.domElement.style.touchAction = 'none';
     renderer.domElement.setAttribute('aria-hidden', 'true');
+    // Si la GPU pierde el contexto (driver, poca memoria), three deja de dibujar y lo recupera solo.
+    // Un shader con errores de GLSL se informa completo; si el enlace falla sin ningún log es la GPU,
+    // y se avisa una sola vez en lugar de un error por cada material.
+    let gpuWarned = false;
+    renderer.debug.onShaderError = (gl, program, vertex, fragment) => {
+      const logs = [gl.getProgramInfoLog(program), gl.getShaderInfoLog(vertex), gl.getShaderInfoLog(fragment)].map((l) => (l || '').trim());
+      if (logs.some(Boolean)) console.error('[bóveda] error de shader', ...logs.filter(Boolean));
+      else if (!gpuWarned) {
+        gpuWarned = true;
+        console.warn('[bóveda] la GPU no pudo preparar los materiales; se reintenta cuando recupere el contexto');
+      }
+    };
+    const onContextLost = () => console.warn('[bóveda] se perdió el contexto WebGL');
+    const onContextRestored = () => {
+      gpuWarned = false;
+      console.warn('[bóveda] contexto WebGL recuperado');
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onContextLost);
+    renderer.domElement.addEventListener('webglcontextrestored', onContextRestored);
     // Antes del velo, para que el velo quede por encima del canvas.
     mount.prepend(renderer.domElement);
 
@@ -905,6 +924,8 @@ export default function VaultRoom3D({
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerCancel);
       canvas.removeEventListener('wheel', onWheel);
+      renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', onContextRestored);
       liveState.sync = null;
       liveState.setTable = null;
       if (apiRef) apiRef.current = null;

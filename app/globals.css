@@ -499,24 +499,12 @@ span.key { cursor: default; }
 /* Velo de corrupción: bordes oscuros teñidos de rojo. VaultRoom3D ajusta la opacidad según el avance. */
 .vault-canvas__veil { position: absolute; inset: 0; pointer-events: none; opacity: 0; will-change: opacity; background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 40%, rgba(70, 6, 3, 0.45) 78%, rgba(14, 1, 1, 0.92) 100%), linear-gradient(to top, rgba(60, 4, 2, 0.35), transparent 45%); }
 
-/* Inicio: la pantalla de CustodiaOS sobre la bóveda. La "Escena 3D" es un hueco que deja ver la sala. */
-.vault__start { position: absolute; inset: 0; z-index: 5; overflow-y: auto; overflow-x: hidden; }
-.vault__start .shell { background: transparent; }
-.vault__start .shell__side, .vault__start .shell__status, .vault__start .screen-head, .vault__start .intro__sub, .vault__start .intro__keys, .vault__start .intro__legal { position: relative; z-index: 2; }
-.vault__start .shell__side { position: sticky; }
-.vault__start .shell__status { position: sticky; }
-.intro__sub { font-size: 15px; color: var(--claro); margin-top: -12px; }
-.intro__scene {
-  position: relative; z-index: 1; margin-top: 32px; height: clamp(240px, 46vh, 420px); border-radius: var(--r-panel);
-  box-shadow: 0 0 0 200vmax var(--fondo), inset 0 0 0 1px rgba(237, 237, 235, 0.08), inset 0 0 80px rgba(20, 20, 21, 0.45);
-  pointer-events: none;
-}
-.intro__corner { position: absolute; width: 20px; height: 20px; border: 0 solid var(--amarillo); }
-.intro__corner--tl { top: 16px; left: 16px; border-top-width: 2px; border-left-width: 2px; }
-.intro__corner--tr { top: 16px; right: 16px; border-top-width: 2px; border-right-width: 2px; }
-.intro__corner--bl { bottom: 16px; left: 16px; border-bottom-width: 2px; border-left-width: 2px; }
-.intro__corner--br { bottom: 16px; right: 16px; border-bottom-width: 2px; border-right-width: 2px; }
-.intro__scene .viewport__rec { top: 22px; left: 44px; }
+/* Inicio: una tarjeta sobre la bóveda, que se ve de fondo. La interfaz se abre desde la terminal. */
+.vault__intro--start { background: linear-gradient(90deg, rgba(20, 20, 21, 0.82), rgba(20, 20, 21, 0.35) 70%, rgba(20, 20, 21, 0.15)); place-items: center start; padding: clamp(16px, 5vw, 72px); overflow-y: auto; }
+.vault__intro-card { width: min(560px, 100%); padding: 28px 32px; background: rgba(38, 38, 40, 0.92); box-shadow: inset 0 0 0 1px rgba(237, 237, 235, 0.06); }
+.vault__intro-card .screen-head { margin-bottom: 12px; }
+.vault__intro-card .screen-title--hero { font-size: clamp(44px, 6vw, 72px); margin-top: 8px; }
+.intro__sub { font-size: 15px; color: var(--claro); }
 .intro__keys { margin-top: 28px; }
 .intro__legal { margin-top: 20px; font-size: 11px; color: var(--claro); max-width: 90ch; }
 .intro__legal a { color: var(--papel); }

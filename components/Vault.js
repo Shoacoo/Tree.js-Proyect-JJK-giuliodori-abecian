@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import InspectionNotes from '@/components/InspectionNotes';
 import InspectionPanel from '@/components/InspectionPanel';
 import MangaFlashback from '@/components/MangaFlashback';
-import Shell, { Key, PersistenceBadge, ScreenHead, useHotkeys } from '@/components/Shell';
+import { Key, PersistenceBadge, ScreenHead, useHotkeys } from '@/components/Shell';
 import { CASES, HIDDEN_BOX, MEMORY_TOTAL, VAULT_BOXES, getCase, getCaseByBox, nextCaseId } from '@/data/cases';
 import { isCaseUnlocked, useProgress } from '@/hooks/useProgress';
 import { qualityLabel, useQuality } from '@/hooks/useQuality';
@@ -569,20 +569,11 @@ export default function Vault({ intro, legal }) {
       ) : null}
 
       {!entered ? (
-        // Inicio: la pantalla de CustodiaOS tapa la sala y deja verla solo por el recuadro de la cámara.
-        <div className="vault__start">
-          <Shell hints="[ENTER] Entrar  [S] Sonido  [R] Efectos  [C] Créditos">
-            <ScreenHead eyebrow="Inicio" title="contención" size="hero" />
+        // Inicio: se arranca adentro de la bóveda. La interfaz de CustodiaOS solo se abre desde la terminal.
+        <div className="vault__intro vault__intro--start">
+          <div className="panel vault__intro-card">
+            <ScreenHead eyebrow="Subsuelo B3 · 15/03/2018 · 23:31" title="contención" size="hero" />
             {intro}
-            <div className="intro__scene" aria-hidden="true">
-              <span className="intro__corner intro__corner--tl" />
-              <span className="intro__corner intro__corner--tr" />
-              <span className="intro__corner intro__corner--bl" />
-              <span className="intro__corner intro__corner--br" />
-              <span className="viewport__rec">
-                <span className="rec" /> REC&nbsp; CAM-B3-01&nbsp; 15/03/2018 23:31
-              </span>
-            </div>
             <div className="keys intro__keys">
               <Key k="ENTER" variant="fill" onClick={enter} autoFocus>
                 Entrar a la bóveda
@@ -598,7 +589,7 @@ export default function Vault({ intro, legal }) {
               </Key>
             </div>
             {legal}
-          </Shell>
+          </div>
         </div>
       ) : null}
     </main>
