@@ -49,7 +49,7 @@ export default function MangaFlashback({ seal, found, onFind, onClose, inline = 
         <span>{flashback.title} · LECTURA DE RESIDUO</span>
         {!inline ? (
           <button ref={closeRef} type="button" className="manga__close" onClick={onClose}>
-            Cerrar
+            [ESC] Cerrar
           </button>
         ) : null}
       </header>

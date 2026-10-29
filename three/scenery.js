@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { font } from './fonts';
 
 function canvasTexture(width, height, draw) {
   const canvas = document.createElement('canvas');
@@ -77,7 +78,7 @@ function createRuler() {
     ctx.fillStyle = '#d8d0b8';
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = '#17140f';
-    ctx.font = '500 26px "IBM Plex Mono", monospace';
+    ctx.font = font('mono', 26, 500);
     const px = (w - 40) / length;
     for (let mm = 0; mm <= length * 10; mm += 1) {
       const x = 20 + (mm / 10) * px;
@@ -104,9 +105,9 @@ function createTag(code) {
     ctx.fillStyle = '#d6cbb0';
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = '#17140f';
-    ctx.font = '600 40px "IBM Plex Mono", monospace';
+    ctx.font = font('mono', 40, 600);
     ctx.fillText(code, 24, 60);
-    ctx.font = '400 20px "IBM Plex Mono", monospace';
+    ctx.font = font('mono', 20, 400);
     ctx.fillText('DEPÓSITO B3', 24, 98);
     ctx.beginPath();
     ctx.arc(w - 26, 26, 9, 0, Math.PI * 2);

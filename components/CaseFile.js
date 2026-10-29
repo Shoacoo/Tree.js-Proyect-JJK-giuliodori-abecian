@@ -1,15 +1,15 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import MangaFlashback from '@/components/MangaFlashback';
 import SealStatePicker from '@/components/SealStatePicker';
-import Terminal from '@/components/Terminal';
-import { SETTING, getCase, nextCaseId } from '@/data/cases';
+import Shell, { Cells, Key, ScreenHead, Tag, handle, useHotkeys } from '@/components/Shell';
+import { MEMORY_TOTAL, SETTING, getCase, nextCaseId } from '@/data/cases';
 import { isCaseUnlocked, useProgress } from '@/hooks/useProgress';
 import { useQuality } from '@/hooks/useQuality';
+import { LEAK_LIMIT, shortPlace } from '@/lib/readings';
 import { downgradeAutoQuality } from '@/three/quality';
 import { playPeel } from '@/lib/sound';
 
@@ -20,10 +20,20 @@ const Reliquary3D = dynamic(() => import('@/components/Reliquary3D'), {
 });
 
 const HINTS = {
-  idle: 'Mantené presionado un sello para despegarlo · Arrastrá para girar · Rueda para acercar',
-  hold: 'Despegando… no sueltes hasta que se suelte solo',
-  tap: 'Mantené presionado para despegarlo con cuidado. Si soltás antes, se arranca.',
+  idle: 'mantené presionado un sello para retirarlo · arrastrá para girar · rueda para acercar',
+  hold: 'despegando… no sueltes hasta que se suelte solo',
+  tap: 'mantené presionado para despegarlo con cuidado: si soltás antes, se arranca',
 };
+
+function SealTag({ state }) {
+  if (!state.peeled) return <Tag tone="muted">colocado</Tag>;
+  if (!state.state) return <Tag tone="active">en curso</Tag>;
+  return (
+    <Tag tone={state.ripped ? 'alert' : 'normal'}>
+      {state.ripped ? 'arrancado' : 'retirado'} · {state.state.toLowerCase()}
+    </Tag>
+  );
+}
 
 export default function CaseFile({ caseId }) {
   const data = getCase(caseId);
@@ -36,7 +46,6 @@ export default function CaseFile({ caseId }) {
   const [feedback, setFeedback] = useState(null);
   const [openFlashback, setOpenFlashback] = useState(null);
   const [lamp, setLamp] = useState(false);
-  const [notes, setNotes] = useState('');
 
   const caseProgress = progress.cases[caseId];
   const sealState = caseProgress.seals;
@@ -51,31 +60,32 @@ export default function CaseFile({ caseId }) {
     if (hydrated && !unlocked) router.replace('/indice');
   }, [hydrated, unlocked, router]);
 
-  const handlePeel = useCallback(
-    (sealId, careful) => {
-      const result = peelSeal(caseId, sealId, careful);
-      if (!result) return;
-      if (settings.sound) playPeel(result.ripped);
-      const parts = [];
-      if (result.ripped) parts.push('Arrancaste el sello.');
-      if (result.outOfOrder) parts.push('No era el siguiente en el orden de retiro.');
-      setFeedback(
-        parts.length
-          ? { tone: 'bad', text: `${parts.join(' ')} Se filtró energía maldita.` }
-          : { tone: 'ok', text: 'Sello retirado sin fuga.' },
-      );
-      setHint('idle');
-      setOpenFlashback(sealId);
-    },
-    [caseId, peelSeal, settings.sound],
-  );
+  // Reliquary3D lee los callbacks desde una ref: no hace falta memorizarlos.
+  const handlePeel = (sealId, careful) => {
+    const result = peelSeal(caseId, sealId, careful);
+    if (!result) return;
+    if (settings.sound) playPeel(result.ripped);
+    const parts = [];
+    if (result.ripped) parts.push('Arrancaste el sello.');
+    if (result.outOfOrder) parts.push('No era el siguiente en el orden de retiro.');
+    setFeedback(
+      parts.length
+        ? { tone: 'bad', text: `${parts.join(' ')} Se filtró energía maldita.` }
+        : { tone: 'ok', text: 'Sello retirado sin fuga.' },
+    );
+    setHint('idle');
+    setOpenFlashback(sealId);
+  };
 
   const handleMark = (seal, state) => {
     const result = markSeal(caseId, seal.id, state);
     if (!result) return;
     setFeedback(
       result.mismatch
-        ? { tone: 'bad', text: `El residuo no coincide: el ${seal.label.toLowerCase()} estaba ${result.actual.toLowerCase()}. Quedó mal resellado y se filtró energía.` }
+        ? {
+            tone: 'bad',
+            text: `El residuo no coincide: el ${seal.label.toLowerCase()} estaba ${result.actual.toLowerCase()}. Quedó mal resellado y se filtró energía.`,
+          }
         : { tone: 'ok', text: `${seal.label} registrado como ${state.toLowerCase()}.` },
     );
   };
@@ -84,102 +94,73 @@ export default function CaseFile({ caseId }) {
   const handleHint = useCallback((value) => setHint(value), []);
 
   const archive = () => {
+    if (!allDone) return;
     if (!caseProgress.archived) archiveCase(caseId);
-    router.push(nextCaseId(caseId) === '00' ? '/expediente/00' : '/indice');
+    router.push(nextCaseId(caseId) === '00' ? '/expediente/00' : '/indice#lote');
   };
 
   const hoveredSeal = hovered ? sealsById[hovered] : null;
   const fb = openFlashback ? sealsById[openFlashback] : null;
+  const [residue, code] = activeSeal ? activeSeal.flashback.title.split(' ') : [];
+
+  useHotkeys(
+    {
+      '+': () => apiRef.current?.zoomIn(),
+      '=': () => apiRef.current?.zoomIn(),
+      '-': () => apiRef.current?.zoomOut(),
+      0: () => apiRef.current?.reset(),
+      l: () => setLamp((v) => !v),
+      a: archive,
+      Escape: () => router.push('/indice#lote'),
+    },
+    !fb,
+  );
 
   return (
-    <Terminal
-      crumbs={
-        <>
-          <Link href="/">Bóveda</Link> / <Link href="/indice">Índice · {SETTING.lot}</Link> / <strong>{data.code}</strong> / Control de integridad
-          <span className="terminal__crumbs-right">
-            FORM. B3-07 · {SETTING.maintenanceOrder} · RESIDUO EN BÓVEDA {progress.leak}
-          </span>
-        </>
-      }
-    >
+    <Shell active="lote" hints="[+/−] Zoom  [L] Luz  [1/2/3] Estado del papel  [A] Archivar  [ESC] Volver al lote">
+      <ScreenHead eyebrow={`Expediente · ${SETTING.lot}`} title={`${data.code} · ${shortPlace(data.place)}`} />
       <div className="case">
-        <aside className="case__sheet">
-          <div className="case__kicker">EXPEDIENTE · GRADO ESPECIAL</div>
-          <span className="stamp stamp--classified">CLASIFICADO</span>
-          <h1 className="case__code">{data.code}</h1>
-          <p className="case__title">{data.title}</p>
-          <p className="case__place">{data.place}</p>
-          <div className="barcode" aria-hidden="true" />
-          <div className="mono small">{data.barcode}</div>
-          <dl className="facts">
-            <div><dt>RECUPERADO</dt><dd>{data.recovered}</dd></div>
-            <div><dt>EQUIPO</dt><dd>{data.team}</dd></div>
-            <div><dt>LONGITUD</dt><dd>{String(data.length).replace('.', ',')} cm</dd></div>
-            <div><dt>PESO</dt><dd>{data.weight}</dd></div>
-            <div><dt>SELLOS</dt><dd>{data.seals.length} · papel ofuda</dd></div>
-            <div><dt>ÚLT. CONTROL</dt><dd>{data.lastControl}</dd></div>
-          </dl>
-          <h2 className="label">INFORME DE RECUPERACIÓN</h2>
-          <p className="case__report">{data.report}</p>
-          <h2 className="label">CADENA DE CUSTODIA</h2>
-          <table className="custody">
-            <tbody>
-              {data.custody.map(([date, who, what]) => (
-                <tr key={date + who}>
-                  <td>{date}</td>
-                  <td>{who}</td>
-                  <td>{what}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </aside>
-
-        <section className="case__stage" aria-label="Mesa de inspección">
-          <div className="viewport">
+        <div className="case__main">
+          <section className="viewport" aria-label="Mesa de inspección">
             {quality ? (
-            <Reliquary3D
-              key={quality}
-              quality={quality}
-              onSlow={qualityPref === 'auto' ? downgradeAutoQuality : undefined}
-              caseData={data}
-              sealState={sealState}
-              leak={progress.leak}
-              influence={influence}
-              reduceEffects={settings.reduceEffects}
-              lamp={lamp}
-              apiRef={apiRef}
-              onHover={handleHover}
-              onPeel={handlePeel}
-              onHint={handleHint}
-            />
+              <Reliquary3D
+                key={quality}
+                quality={quality}
+                onSlow={qualityPref === 'auto' ? downgradeAutoQuality : undefined}
+                caseData={data}
+                sealState={sealState}
+                leak={progress.leak}
+                influence={influence}
+                reduceEffects={settings.reduceEffects}
+                lamp={lamp}
+                apiRef={apiRef}
+                onHover={handleHover}
+                onPeel={handlePeel}
+                onHint={handleHint}
+              />
             ) : null}
-            <div className="viewport__tag viewport__tag--left">
-              <span className="rec" aria-hidden="true" /> CAM-B3-02 · MESA DE INSPECCIÓN
-            </div>
-            <div className="viewport__tag viewport__tag--right">
-              {SETTING.date.split(' ')[1]} {SETTING.time}
+            <div className="viewport__rec">
+              <span className="rec" aria-hidden="true" /> REC&nbsp; CAM-B3-02&nbsp; MESA DE INSPECCIÓN
             </div>
             {hoveredSeal ? (
               <div className="viewport__label" aria-hidden="true">
-                <strong>{hoveredSeal.label.toUpperCase()}</strong>
-                <span>Inscripción: {hoveredSeal.inscription}</span>
-                {lamp ? <span>Tinta: {hoveredSeal.ink}</span> : null}
+                <strong>{hoveredSeal.label}</strong>
+                {lamp ? <span>Tinta: {hoveredSeal.ink}</span> : <span>[L] luz rasante para ver la tinta</span>}
               </div>
             ) : null}
-            <div className="viewport__tools">
-              <button type="button" onClick={() => apiRef.current?.zoomIn()} aria-label="Acercar cámara">＋</button>
-              <button type="button" onClick={() => apiRef.current?.zoomOut()} aria-label="Alejar cámara">－</button>
-              <button type="button" onClick={() => apiRef.current?.reset()} aria-label="Restablecer vista">⟲</button>
-              <button
-                type="button"
-                onClick={() => setLamp((v) => !v)}
+            <div className="viewport__tools" role="group" aria-label="Cámara y luz">
+              <Key k="+" onClick={() => apiRef.current?.zoomIn()} aria-label="Acercar cámara" />
+              <Key k="−" onClick={() => apiRef.current?.zoomOut()} aria-label="Alejar cámara" />
+              <Key k="↺" onClick={() => apiRef.current?.reset()} aria-label="Restablecer vista" title="Restablecer vista (0)" />
+              <Key
+                k="L"
+                variant={lamp ? 'fill' : 'outline'}
                 aria-pressed={lamp}
+                onClick={() => setLamp((v) => !v)}
                 aria-label="Luz rasante de inspección"
-                className={lamp ? 'is-on' : ''}
               >
-                ☀
-              </button>
+                Luz
+              </Key>
             </div>
             <p className="viewport__hint" aria-live="polite">
               {HINTS[hint]}
@@ -194,93 +175,168 @@ export default function CaseFile({ caseId }) {
                 />
               </div>
             ) : null}
-          </div>
+          </section>
 
-          <div className="no3d" role="group" aria-label="Controles sin 3D">
-            <span className="label">CONTROLES SIN 3D</span>
-            <div className="no3d__buttons">
-              {data.seals.map((seal) =>
-                sealState[seal.id].peeled ? (
-                  <button key={seal.id} type="button" className="btn btn--ghost" onClick={() => setOpenFlashback(seal.id)}>
-                    {seal.label} · releer residuo
-                  </button>
-                ) : (
-                  <button key={seal.id} type="button" className="btn" onClick={() => handlePeel(seal.id, true)}>
-                    Retirar {seal.label.toLowerCase()}
-                  </button>
-                ),
-              )}
-              <button type="button" className="btn btn--ghost" aria-pressed={lamp} onClick={() => setLamp((v) => !v)}>
-                {lamp ? 'Apagar luz rasante' : 'Inspeccionar tinta'}
-              </button>
-            </div>
-            {lamp ? (
-              <ul className="no3d__ink">
-                {data.seals
-                  .filter((s) => !sealState[s.id].peeled)
-                  .map((s) => (
-                    <li key={s.id}>
-                      {s.label}: tinta {s.ink}
-                    </li>
-                  ))}
-              </ul>
-            ) : null}
+          <div className="seal-rows" role="group" aria-label="Sellos (controles sin 3D)">
+            {data.seals.map((seal) => {
+              const state = sealState[seal.id];
+              return (
+                <div key={seal.id} className={`seal-row${state.peeled && !state.state ? ' is-current' : ''}`}>
+                  <span>
+                    {seal.label}
+                    {state.peeled ? ` · ${seal.flashback.title.toLowerCase()}` : ''}
+                  </span>
+                  <span className="seal-row__side">
+                    {state.peeled ? (
+                      <Key className="key--sm" onClick={() => setOpenFlashback(seal.id)}>
+                        Releer residuo
+                      </Key>
+                    ) : (
+                      <Key className="key--sm" onClick={() => handlePeel(seal.id, true)}>
+                        Retirar
+                      </Key>
+                    )}
+                    <SealTag state={state} />
+                  </span>
+                </div>
+              );
+            })}
           </div>
+          {lamp ? (
+            <ul className="ink-list" aria-label="Tinta de los sellos colocados">
+              {data.seals
+                .filter((s) => !sealState[s.id].peeled)
+                .map((s) => (
+                  <li key={s.id}>
+                    {s.label}: tinta {s.ink}
+                  </li>
+                ))}
+            </ul>
+          ) : null}
           {feedback ? (
             <p className={`feedback feedback--${feedback.tone}`} role="status">
               {feedback.text}
             </p>
           ) : null}
-        </section>
+        </div>
 
-        <aside className="case__form">
-          {peeled.length ? (
-            <div className="notes">
-              {peeled.map((seal) => (
-                <MangaFlashback
-                  key={seal.id}
-                  inline
-                  seal={seal}
-                  found={progress.memory.includes(seal.flashback.hidden.id)}
-                  onFind={() => findMemory(seal.flashback.hidden.id)}
+        <aside className="case__side">
+          <section className="panel seal-panel" aria-live="polite" aria-label="Sello activo">
+            {activeSeal ? (
+              <>
+                <span className="seal-panel__kicker">{activeSeal.label}</span>
+                <h2 className="seal-panel__title">
+                  {residue}
+                  <br />
+                  {code}
+                </h2>
+                <SealStatePicker
+                  seal={activeSeal}
+                  legend="Estado del papel:"
+                  hotkeys={!fb}
+                  onMark={(state) => handleMark(activeSeal, state)}
                 />
-              ))}
-            </div>
-          ) : (
-            <div className="field-note">
-              <div className="label label--red">NOTA DE CAMPO · SIN LEER</div>
-              <p>Retirá el primer sello para leer el residuo. Los sellos se retiran en orden inverso al de colocación.</p>
-            </div>
-          )}
+              </>
+            ) : (
+              <>
+                <span className="seal-panel__kicker">Sello activo</span>
+                <p className="seal-panel__empty">
+                  {allDone
+                    ? 'Todos los sellos verificados. Ya podés archivar el expediente.'
+                    : 'Retirá un sello para registrar en qué estado estaba el papel.'}
+                </p>
+              </>
+            )}
+          </section>
 
-          {activeSeal ? <SealStatePicker seal={activeSeal} onMark={(state) => handleMark(activeSeal, state)} /> : null}
-
-          <label className="label observations">
-            OBSERVACIONES
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Opcional" />
-          </label>
-
-          <div className="signature">
-            <div>
-              <div className="label">FIRMA DEL OPERADOR</div>
-              <div className="signature__line">{operator}</div>
+          <section className="panel readout" aria-label="Lecturas">
+            <div className="readout__row">
+              <span>memoria</span>
+              <Cells value={progress.memory.length} max={MEMORY_TOTAL} />
+              <span>
+                {progress.memory.length}/{MEMORY_TOTAL}
+              </span>
             </div>
-            <span className="stamp stamp--round" aria-hidden="true">確認</span>
-          </div>
+            <div className="readout__row">
+              <span>filtrado</span>
+              <Cells value={Math.min(progress.leak, LEAK_LIMIT)} max={LEAK_LIMIT} tone="r" />
+              <span className={progress.leak ? 'red' : ''}>
+                {progress.leak}/{LEAK_LIMIT}
+              </span>
+            </div>
+            <div className="readout__row">
+              <span>sellos</span>
+              <Cells value={marked.length} max={data.seals.length} />
+              <span>
+                {marked.length}/{data.seals.length}
+              </span>
+            </div>
+            <span>firma: {handle(operator)}</span>
+          </section>
 
-          <div className="archive">
-            <div className="meter" aria-hidden="true">
-              <span style={{ width: `${(marked.length / data.seals.length) * 100}%` }} />
-            </div>
-            <div className="mono small">
-              {marked.length} DE {data.seals.length} SELLOS VERIFICADOS
-            </div>
-            <button type="button" className="btn btn--primary" disabled={!allDone} onClick={archive}>
-              {caseProgress.archived ? 'Archivado · volver al índice' : 'Archivar expediente'}
-            </button>
-          </div>
+          <section className="field-note" aria-label="Nota de campo">
+            <span className="label">
+              Nota de campo · {peeled.length ? `${peeled.length} de ${data.seals.length} residuos leídos` : 'sin leer'}
+            </span>
+            <p>Retirá los sellos en orden inverso al de colocación.</p>
+            <p>{data.report}</p>
+          </section>
+
+          <details className="panel ficha">
+            <summary className="eyebrow">Ficha del objeto</summary>
+            <dl className="facts">
+              <div>
+                <dt>Objeto</dt>
+                <dd>{data.title}</dd>
+              </div>
+              <div>
+                <dt>Caja</dt>
+                <dd>{data.box}</dd>
+              </div>
+              <div>
+                <dt>Recuperado</dt>
+                <dd>{data.recovered}</dd>
+              </div>
+              <div>
+                <dt>Equipo</dt>
+                <dd>{data.team}</dd>
+              </div>
+              <div>
+                <dt>Longitud</dt>
+                <dd>{String(data.length).replace('.', ',')} cm</dd>
+              </div>
+              <div>
+                <dt>Peso</dt>
+                <dd>{data.weight}</dd>
+              </div>
+              <div>
+                <dt>Sellos</dt>
+                <dd>{data.seals.length} · papel ofuda</dd>
+              </div>
+              <div>
+                <dt>Últ. control</dt>
+                <dd>{data.lastControl}</dd>
+              </div>
+            </dl>
+            <span className="eyebrow eyebrow--plain">Cadena de custodia</span>
+            <table className="custody">
+              <tbody>
+                {data.custody.map(([date, who, what]) => (
+                  <tr key={date + who}>
+                    <td>{date}</td>
+                    <td>{who}</td>
+                    <td>{what}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+
+          <Key k="A" variant="fill" className="archive-key" disabled={!allDone} onClick={archive}>
+            {caseProgress.archived ? 'Archivado · volver al lote' : 'Archivar expediente'}
+          </Key>
         </aside>
       </div>
-    </Terminal>
+    </Shell>
   );
 }

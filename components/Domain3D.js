@@ -105,7 +105,7 @@ export default function Domain3D({ phase, reduceEffects }) {
     let cast = null;
     let disposed = false;
 
-    const useModels = (models) => {
+    const applyModels = (models) => {
       altar.group.position.set(0, LAYOUT.altar.y, LAYOUT.altar.z);
       altar.group.scale.setScalar(LAYOUT.altar.scale);
       // Cenital estrecha desde arriba y adelante: entra por las fauces hasta Sukuna.
@@ -143,7 +143,7 @@ export default function Domain3D({ phase, reduceEffects }) {
       };
     };
 
-    const useProcedural = () => {
+    const applyProcedural = () => {
       const shrine = createShrine();
       const sukuna = createSukuna();
       sukuna.group.position.set(0, PLATFORM_Y, -0.55);
@@ -175,8 +175,8 @@ export default function Domain3D({ phase, reduceEffects }) {
 
     loadDomainModels().then((models) => {
       if (disposed) return;
-      if (models) useModels(models);
-      else useProcedural();
+      if (models) applyModels(models);
+      else applyProcedural();
     });
 
     const resize = () => {

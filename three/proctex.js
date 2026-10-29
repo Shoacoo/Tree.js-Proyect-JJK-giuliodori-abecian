@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { font } from './fonts';
 
 // Texturas procedurales de la bóveda: todo se dibuja en canvas al cargar la escena,
 // sin imágenes externas. Cada generador acepta una semilla para que dos objetos
@@ -584,9 +585,9 @@ export function matTexture(seed) {
     ctx.fillRect(0, y, w, major ? 1.6 : 1);
   }
   ctx.fillStyle = 'rgba(210,220,200,0.55)';
-  ctx.font = '500 13px "IBM Plex Mono", monospace';
+  ctx.font = font('mono', 13, 500);
   for (let i = 0; i <= 60; i += 5) ctx.fillText(String(i), i * cm + 3, 14);
-  ctx.font = '600 15px "IBM Plex Mono", monospace';
+  ctx.font = font('mono', 15, 600);
   ctx.fillText('JUJUTSU KŌSEN · MESA B3-M1 · NO APOYAR OBJETOS SIN SELLAR', 24, h - 18);
   scratches(ctx, w, h, r, 80, 'rgba(150,170,150,0.25)', 0.08);
   for (let i = 0; i < 6; i += 1) blob(ctx, r() * w, r() * h, 20 + r() * 50, 'rgba(10,6,4,0.3)', r);

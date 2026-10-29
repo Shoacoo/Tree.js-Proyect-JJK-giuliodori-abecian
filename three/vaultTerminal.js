@@ -1,397 +1,563 @@
 import * as THREE from 'three';
+import { SETTING } from '@/data/cases';
+import { LEAK_LIMIT, barrierCells, barrierReading, handle, logParts, placeKind, shortPlace } from '@/lib/readings';
 import { font } from './fonts';
 import { paintedMetalTextures, paperCanvas, plasticTextures, rng } from './proctex';
 import { createClock, createNoticeBoard, merged, mesh } from './vaultRoom';
 
-// Resolución del canvas de la pantalla (4:3, como un monitor CRT).
+// Resolución del canvas de la pantalla (4:3, como un monitor CRT). Es el mismo tamaño que los cuadros
+// "Terminal B3" de la interfaz V3.2 en el Figma: las medidas de abajo salen de ahí tal cual.
 export const SCREEN = { width: 1024, height: 768 };
 
 const C = {
-  bg: '#0d110f',
-  panel: '#141a16',
-  line: 'rgba(232,224,200,0.18)',
-  text: '#e8e0c8',
-  dim: '#8f8a76',
-  accent: '#d4452f',
-  ok: '#9cc59a',
-  warn: '#e0b54a',
+  tinta: '#141415',
+  fondo: '#262628',
+  marco: '#3a3a3c',
+  panel: '#5e5e61',
+  claro: '#c6c6c8',
+  papel: '#ededeb',
+  amarillo: '#d9ae3a',
+  rojo: '#b8322a',
+  rojoTexto: '#e0574d',
+  vacio: 'rgba(237,237,235,0.1)',
+  linea: 'rgba(237,237,235,0.14)',
 };
+const GLOW_Y = 'rgba(217,174,58,0.7)';
+const GLOW_R = 'rgba(184,50,42,0.65)';
+const GLOW_P = 'rgba(237,237,235,0.35)';
 
 export const SCREEN_TABS = [
-  { id: 'session', key: 'F1', label: 'SESIÓN' },
-  { id: 'lot', key: 'F2', label: 'LOTE 2018-B3' },
-  { id: 'log', key: 'F3', label: 'REGISTRO' },
-  { id: 'barrier', key: 'F4', label: 'BARRERA' },
-  { id: 'protocol', key: 'F5', label: 'PROTOCOLO' },
+  { id: 'session', label: 'Sesión' },
+  { id: 'lot', label: 'Lote' },
+  { id: 'log', label: 'Registro' },
+  { id: 'barrier', label: 'Barrera' },
+  { id: 'protocol', label: 'Protocolo' },
+  { id: 'forms', label: 'Formularios' },
+  { id: 'help', label: 'Ayuda' },
 ];
 
-const STATUS_LABEL = {
-  pending: ['PENDIENTE', C.warn],
-  archived: ['ARCHIVADO', C.ok],
-  locked: ['BLOQUEADO', C.dim],
-  revealed: ['SIN REGISTRO', C.accent],
+const HINTS = {
+  session: '[CLICK] Seleccionar   [ARRASTRAR] Mirar alrededor',
+  lot: '[CLICK] Abrir expediente   [MENÚ] Navegar',
+  log: '[CLICK] Abrir el registro completo   [MENÚ] Navegar',
+  barrier: 'Lectura en vivo · sensor B3-S1',
+  protocol: '[CLICK] Firmar en el sistema   [MENÚ] Navegar',
+  forms: '[CLICK] Abrir formulario   [MENÚ] Navegar',
+  help: '[CLICK] Seleccionar   [MENÚ] Navegar',
 };
 
-const PERSISTENCE_LABEL = { nube: 'ARCHIVO CENTRAL', local: 'REGISTRO LOCAL', offline: 'SIN ENLACE' };
+const PERSISTENCE_LABEL = { nube: 'archivo central', local: 'registro local', offline: 'sin enlace' };
+const LOT = SETTING.lot.replace(/^LOTE /, '');
+const ORDER = SETTING.maintenanceOrder.split(' ').pop();
+const ASSIGNED = SETTING.date.split(' ')[1];
+// Columna de contenido: a la derecha del panel lateral, hasta el borde de la ventana.
+const X = 224;
+const W = 776;
+const RIGHT = X + W;
 
 function pad(n) {
   return String(n).padStart(2, '0');
 }
 
-function button(ctx, hotspots, { x, y, w, h, label, action, hover, primary = false }) {
-  const active = hover === action;
-  ctx.fillStyle = primary ? (active ? '#f2ead4' : C.text) : active ? 'rgba(232,224,200,0.16)' : 'rgba(232,224,200,0.05)';
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = primary ? C.text : 'rgba(232,224,200,0.55)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
-  ctx.fillStyle = primary ? C.bg : C.text;
-  ctx.font = font('mono', 22, 600);
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + 18, y + h / 2 + 1);
-  ctx.textBaseline = 'alphabetic';
-  hotspots.push({ x, y, w, h, action });
+// Las tipografías de títulos y números puede que todavía no se hayan usado en la página.
+let fontsRequested = false;
+function requestFonts() {
+  if (fontsRequested || typeof document === 'undefined' || !document.fonts) return;
+  fontsRequested = true;
+  [font('display', 30, 700), font('display', 130, 500), font('mono', 14, 400), font('mono', 14, 500)].forEach((f) => document.fonts.load(f).catch(() => {}));
 }
 
-function bar(ctx, x, y, w, value, max, color) {
-  ctx.fillStyle = 'rgba(232,224,200,0.08)';
-  ctx.fillRect(x, y, w, 16);
-  const cells = 24;
-  const filled = Math.round((Math.min(value, max) / max) * cells);
-  for (let i = 0; i < cells; i += 1) {
-    ctx.fillStyle = i < filled ? color : 'rgba(232,224,200,0.12)';
-    ctx.fillRect(x + i * (w / cells) + 1, y + 2, w / cells - 3, 12);
+function path(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+  else ctx.rect(x, y, w, h);
+}
+
+function box(ctx, x, y, w, h, { fill, stroke, glow, r = 6, line = 1.5 } = {}) {
+  if (fill) {
+    path(ctx, x, y, w, h, r);
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+  if (stroke) {
+    ctx.save();
+    if (glow) {
+      ctx.shadowColor = glow;
+      ctx.shadowBlur = 10;
+    }
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = line;
+    path(ctx, x + line / 2, y + line / 2, w - line, h - line, Array.isArray(r) ? r : Math.max(0, r - line / 2));
+    ctx.stroke();
+    ctx.restore();
   }
 }
 
-function drawSession(ctx, s, hotspots, x, y, w) {
-  ctx.fillStyle = C.text;
-  ctx.font = font('mono', 30, 600);
-  if (!s.signedIn) {
-    ctx.fillText('IDENTIFICACIÓN REQUERIDA', x, y + 40);
-    ctx.font = font('mono', 20, 400);
-    ctx.fillStyle = C.dim;
-    ['Toda inspección del Depósito B3 queda registrada', 'a nombre del operador que la realiza.', '', 'Ingresá con tu número de Ventana para continuar.'].forEach((line, i) => ctx.fillText(line, x, y + 90 + i * 30));
-    // Campo de texto con cursor.
-    ctx.strokeStyle = 'rgba(232,224,200,0.6)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y + 230, w - 40, 56);
-    ctx.fillStyle = C.dim;
-    ctx.font = font('mono', 22, 500);
-    ctx.fillText('OPERADOR:', x + 16, y + 266);
-    if (s.cursor) {
-      ctx.fillStyle = C.text;
-      ctx.fillRect(x + 150, y + 244, 14, 28);
-    }
-    button(ctx, hotspots, { x, y: y + 320, w: 320, h: 60, label: '▶ IDENTIFICARSE', action: 'login', hover: s.hover, primary: true });
-    ctx.fillStyle = C.dim;
-    ctx.font = font('mono', 17, 400);
-    ctx.fillText('Acceso anónimo, Google o correo. Se abre el formulario.', x, y + 420);
+// Texto centrado en y. Devuelve el ancho.
+function text(ctx, str, x, y, { size = 13, weight = 400, color = C.papel, kind = 'mono', align = 'left', glow, spacing = 0 } = {}) {
+  ctx.save();
+  ctx.font = font(kind, size, weight);
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  if (spacing && 'letterSpacing' in ctx) ctx.letterSpacing = `${spacing}px`;
+  if (glow) {
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 10;
+  }
+  ctx.fillText(str, x, y);
+  const width = ctx.measureText(str).width;
+  ctx.restore();
+  return width;
+}
+
+function measure(ctx, str, size, weight = 400, kind = 'mono') {
+  ctx.save();
+  ctx.font = font(kind, size, weight);
+  const width = ctx.measureText(str).width;
+  ctx.restore();
+  return width;
+}
+
+function wrap(ctx, str, maxWidth, size, weight = 400) {
+  const lines = [];
+  let line = '';
+  String(str)
+    .split(' ')
+    .forEach((word) => {
+      const next = line ? `${line} ${word}` : word;
+      if (line && measure(ctx, next, size, weight) > maxWidth) {
+        lines.push(line);
+        line = word;
+      } else line = next;
+    });
+  if (line) lines.push(line);
+  return lines;
+}
+
+function hline(ctx, x1, x2, y, color = C.linea) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x1, y, x2 - x1, 1);
+}
+
+// Tecla "[ENTER] Ingresar": contorno, amarilla, roja, tinta o sin borde.
+function key(ctx, hotspots, s, { x, y, label, variant = 'outline', action, h = 30, size = 12, right = false }) {
+  const plain = variant === 'plain';
+  const w = Math.ceil(measure(ctx, label, size)) + (plain ? 0 : 24);
+  const left = right ? x - w : x;
+  const hover = Boolean(action) && s.hover === action;
+  const look = {
+    outline: { fill: hover ? 'rgba(237,237,235,0.12)' : null, stroke: hover ? C.amarillo : C.papel, text: hover ? C.amarillo : C.papel },
+    fill: { fill: hover ? '#e9c157' : C.amarillo, text: C.tinta },
+    red: { fill: hover ? '#cf4036' : C.rojo, text: C.papel },
+    ink: { fill: hover ? 'rgba(20,20,21,0.14)' : null, stroke: C.tinta, text: C.tinta },
+    plain: { text: hover ? C.amarillo : C.papel },
+  }[variant];
+  box(ctx, left, y, w, h, { fill: look.fill, stroke: look.stroke, r: 2 });
+  text(ctx, label, plain ? left : left + 12, y + h / 2 + 1, { size, color: look.text, glow: hover && plain ? GLOW_Y : null });
+  if (action) hotspots.push({ x: left - 4, y: y - 4, w: w + 8, h: h + 8, action });
+  return w;
+}
+
+// Etiqueta de estado: normal, alerta (contorno rojo), activa (roja) o apagada.
+function tag(ctx, { x, y, label, tone = 'normal', h = 22, right = true }) {
+  const w = Math.ceil(measure(ctx, label, 11)) + 16;
+  const left = right ? x - w : x;
+  const look = {
+    normal: { stroke: C.claro, text: C.papel },
+    alert: { stroke: C.rojo, text: C.rojoTexto },
+    active: { fill: C.rojo, text: C.papel },
+    muted: { stroke: C.panel, text: C.claro },
+    ink: { stroke: C.tinta, text: C.tinta },
+  }[tone];
+  box(ctx, left, y, w, h, { fill: look.fill, stroke: look.stroke, r: 2, line: 1 });
+  text(ctx, label, left + 8, y + h / 2 + 1, { size: 11, color: look.text });
+  return w;
+}
+
+function cells(ctx, x, y, max, value, color, size = 16) {
+  for (let i = 0; i < max; i += 1) box(ctx, x + i * (size + 4), y, size, size, { fill: i < value ? color : C.vacio, r: 2 });
+}
+
+function heading(ctx, eyebrow, title) {
+  text(ctx, eyebrow.toUpperCase(), X, 43, { size: 11, weight: 500, color: C.amarillo, glow: GLOW_Y, spacing: 1.54 });
+  if (title) text(ctx, title, X, 72, { size: 30, weight: 700, kind: 'display' });
+}
+
+function sealDots(ctx, x, y, row) {
+  if (!row.dots) {
+    text(ctx, '—', x, y, { size: 13, color: row.color });
     return;
   }
-  ctx.fillText('SESIÓN ACTIVA', x, y + 40);
-  // Ficha del operador.
-  ctx.strokeStyle = C.line;
-  ctx.strokeRect(x, y + 64, w - 40, 170);
-  ctx.fillStyle = 'rgba(232,224,200,0.06)';
-  ctx.fillRect(x + 16, y + 80, 110, 136);
-  ctx.fillStyle = C.dim;
-  ctx.font = font('sans', 64, 700);
-  ctx.fillText('窓', x + 38, y + 170);
-  ctx.fillStyle = C.text;
-  ctx.font = font('mono', 26, 600);
-  ctx.fillText(String(s.operator ?? 'Operador').toUpperCase().slice(0, 22), x + 150, y + 112);
-  ctx.font = font('mono', 19, 400);
-  ctx.fillStyle = C.dim;
-  ['Ventana · personal de apoyo · sin técnica', 'Asignación: OM-2018-0311', `Enlace: ${PERSISTENCE_LABEL[s.persistence] ?? '—'}`].forEach((line, i) => ctx.fillText(line, x + 150, y + 148 + i * 28));
-  const archived = s.cases.filter((c) => c.status === 'archived').length;
-  ctx.fillStyle = C.text;
-  ctx.font = font('mono', 20, 500);
-  ctx.fillText(`Expedientes archivados: ${archived} / ${s.cases.length}`, x, y + 280);
-  ctx.fillText(`Detalles registrados:   ${s.memory} / ${s.memoryTotal}`, x, y + 312);
-  button(ctx, hotspots, { x, y: y + 350, w: 330, h: 60, label: '▶ ABRIR ÍNDICE', action: 'index', hover: s.hover, primary: true });
-  button(ctx, hotspots, { x: x + 350, y: y + 350, w: 300, h: 60, label: 'CAMBIAR OPERADOR', action: 'login', hover: s.hover });
-}
-
-function drawLot(ctx, s, hotspots, x, y, w) {
-  ctx.fillStyle = C.text;
-  ctx.font = font('mono', 26, 600);
-  ctx.fillText('LOTE 2018-B3 · CONTROL DE INTEGRIDAD', x, y + 34);
-  ctx.fillStyle = C.dim;
-  ctx.font = font('mono', 17, 400);
-  ctx.fillText('ORDEN DE MANTENIMIENTO OM-2018-0311 · 3 OBJETOS DE GRADO ESPECIAL', x, y + 62);
-  const cols = [0, 120, 410, 510, 600];
-  const head = ['EXP', 'ORIGEN', 'CAJA', 'SELLOS', 'ESTADO'];
-  const top = y + 92;
-  ctx.fillStyle = 'rgba(232,224,200,0.1)';
-  ctx.fillRect(x, top, w - 20, 34);
-  ctx.fillStyle = C.dim;
-  ctx.font = font('mono', 16, 600);
-  head.forEach((hd, i) => ctx.fillText(hd, x + 12 + cols[i], top + 23));
-  const rows = [
-    ...s.cases.map((c) => ({ ...c, action: s.signedIn && c.status !== 'locked' ? `case:${c.id}` : null })),
-    {
-      id: '00',
-      code: s.hiddenStatus === 'revealed' ? 'EXP-00' : '———',
-      place: s.hiddenStatus === 'revealed' ? 'sin origen registrado' : 'caja sin uso',
-      box: 'B3-11',
-      seals: s.hiddenStatus === 'revealed' ? 0 : '—',
-      status: s.hiddenStatus === 'revealed' ? 'revealed' : null,
-      action: s.signedIn && s.hiddenStatus === 'revealed' ? 'case:00' : null,
-    },
-  ];
-  rows.forEach((row, i) => {
-    const ry = top + 40 + i * 62;
-    const hover = row.action && s.hover === row.action;
-    if (hover) {
-      ctx.fillStyle = 'rgba(232,224,200,0.14)';
-      ctx.fillRect(x, ry, w - 20, 56);
+  row.dots.forEach((on, i) => {
+    ctx.beginPath();
+    ctx.arc(x + 6 + i * 14, y, 5.5, 0, Math.PI * 2);
+    if (on) {
+      ctx.fillStyle = row.color;
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = row.color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     }
-    ctx.strokeStyle = C.line;
-    ctx.beginPath();
-    ctx.moveTo(x, ry + 58);
-    ctx.lineTo(x + w - 20, ry + 58);
-    ctx.stroke();
-    const muted = row.status === 'locked' || !row.status;
-    ctx.fillStyle = muted ? C.dim : C.text;
-    ctx.font = font('mono', 21, 600);
-    ctx.fillText(row.code, x + 12 + cols[0], ry + 36);
-    ctx.font = font('mono', 17, 400);
-    ctx.fillText(String(row.place).split(',')[0].slice(0, 26), x + 12 + cols[1], ry + 36);
-    ctx.fillText(row.box, x + 12 + cols[2], ry + 36);
-    ctx.fillText(String(row.seals), x + 12 + cols[3], ry + 36);
-    const [label, color] = STATUS_LABEL[row.status] ?? ['VACÍA', C.dim];
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x + 12 + cols[4], ry + 14, 150, 30);
-    ctx.font = font('mono', 15, 600);
-    ctx.fillText(label, x + 24 + cols[4], ry + 35);
-    if (row.action) hotspots.push({ x, y: ry, w: w - 20, h: 56, action: row.action });
-  });
-  ctx.fillStyle = C.dim;
-  ctx.font = font('mono', 17, 400);
-  ctx.fillText(s.signedIn ? 'Click en un expediente habilitado para abrirlo.' : 'Identificate para abrir los expedientes.', x, top + 40 + rows.length * 62 + 36);
-}
-
-function drawLog(ctx, s, x, y, w) {
-  ctx.fillStyle = C.text;
-  ctx.font = font('mono', 26, 600);
-  ctx.fillText('REGISTRO DE ACTIVIDAD', x, y + 34);
-  const entries = s.log.slice(-11).reverse();
-  ctx.font = font('mono', 18, 400);
-  if (!entries.length) {
-    ctx.fillStyle = C.dim;
-    ctx.fillText('Sin actividad registrada en esta inspección.', x, y + 84);
-  }
-  entries.forEach((entry, i) => {
-    const ly = y + 80 + i * 40;
-    ctx.fillStyle = C.dim;
-    ctx.fillText(String(entry.at ?? '').slice(0, 16), x, ly);
-    ctx.fillStyle = /arrancado|fuera de orden/.test(entry.text) ? C.accent : C.text;
-    ctx.fillText(String(entry.text).slice(0, 44), x + 200, ly);
-    ctx.strokeStyle = C.line;
-    ctx.beginPath();
-    ctx.moveTo(x, ly + 14);
-    ctx.lineTo(x + w - 20, ly + 14);
-    ctx.stroke();
-  });
-  // La orden de mantenimiento, siempre arriba de todo (por ahora).
-  ctx.fillStyle = C.dim;
-  ctx.font = font('mono', 16, 400);
-  ctx.fillText('15/03 23:31  OM-2018-0311 emitida por: [superior, sin firma]', x, y + 540);
-}
-
-function drawBarrier(ctx, s, x, y, w) {
-  const stress = Math.min(1, s.leak / 8 + s.influence / 4);
-  ctx.fillStyle = C.text;
-  ctx.font = font('mono', 26, 600);
-  ctx.fillText('BARRERA DEL DEPÓSITO · MONITOR', x, y + 34);
-  ctx.fillStyle = stress > 0.6 ? C.accent : stress > 0.3 ? C.warn : C.ok;
-  ctx.font = font('mono', 20, 600);
-  ctx.fillText(stress > 0.6 ? '■ INESTABLE' : stress > 0.3 ? '■ FLUCTUANTE' : '■ ESTABLE', x, y + 70);
-  // Osciloscopio.
-  const ox = x;
-  const oy = y + 90;
-  const ow = w - 20;
-  const oh = 200;
-  ctx.strokeStyle = C.line;
-  ctx.strokeRect(ox, oy, ow, oh);
-  for (let i = 1; i < 8; i += 1) {
-    ctx.beginPath();
-    ctx.moveTo(ox + (ow / 8) * i, oy);
-    ctx.lineTo(ox + (ow / 8) * i, oy + oh);
-    ctx.stroke();
-  }
-  ctx.beginPath();
-  ctx.moveTo(ox, oy + oh / 2);
-  ctx.lineTo(ox + ow, oy + oh / 2);
-  ctx.stroke();
-  ctx.strokeStyle = stress > 0.6 ? C.accent : C.ok;
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  const r = rng(Math.floor(s.time * 8));
-  for (let px = 0; px <= ow; px += 4) {
-    const t = px / ow;
-    const v =
-      Math.sin(t * 18 + s.time * 3) * 0.35 +
-      Math.sin(t * 47 - s.time * 5) * 0.12 * (1 + stress * 3) +
-      (r() - 0.5) * stress * 0.9;
-    const py = oy + oh / 2 - v * (oh / 2.6);
-    if (px === 0) ctx.moveTo(ox + px, py);
-    else ctx.lineTo(ox + px, py);
-  }
-  ctx.stroke();
-  ctx.lineWidth = 1;
-  const rows = [
-    ['RESIDUO EN BÓVEDA', s.leak, 10, s.leak > 3 ? C.accent : C.warn],
-    ['INFLUENCIA', s.influence, 3, C.accent],
-    ['DETALLES REGISTRADOS', s.memory, s.memoryTotal, C.ok],
-  ];
-  rows.forEach(([label, value, max, color], i) => {
-    const ry = y + 330 + i * 62;
-    ctx.fillStyle = C.dim;
-    ctx.font = font('mono', 17, 600);
-    ctx.fillText(label, x, ry);
-    ctx.fillStyle = C.text;
-    ctx.fillText(`${value} / ${max}`, x + w - 130, ry);
-    bar(ctx, x, ry + 12, w - 20, value, max, color);
   });
 }
 
-function drawProtocol(ctx, x, y) {
-  ctx.fillStyle = C.text;
-  ctx.font = font('mono', 26, 600);
-  ctx.fillText('PROTOCOLO DE INSPECCIÓN', x, y + 34);
-  ctx.font = font('mono', 19, 400);
+// Panel lateral: logo, menú del sistema, versión y accesos rápidos.
+function drawSide(ctx, s, hotspots) {
+  box(ctx, 24, 24, 176, 720, { fill: C.marco });
+  text(ctx, 'contención', 48, 58, { size: 17, weight: 700, kind: 'display', color: C.amarillo, glow: GLOW_Y });
+  box(ctx, 48, 84, 30, 20, { stroke: C.amarillo, r: 3 });
+  text(ctx, 'B3', 63, 95, { size: 11, weight: 500, color: C.amarillo, align: 'center' });
+  const counts = { lot: s.cases.length, log: s.log.length || null };
+  SCREEN_TABS.forEach((item, i) => {
+    const y = 130 + i * 26;
+    const action = `tab:${item.id}`;
+    const active = s.tab === item.id;
+    if (active) box(ctx, 36, y, 152, 24, { fill: C.rojo });
+    else if (s.hover === action) box(ctx, 36, y, 152, 24, { fill: 'rgba(237,237,235,0.09)' });
+    text(ctx, item.label, 48, y + 12.5, { size: 14 });
+    if (counts[item.id]) text(ctx, String(counts[item.id]), 176, y + 12.5, { size: 12, color: active ? C.papel : C.claro, align: 'right' });
+    hotspots.push({ x: 36, y, w: 152, h: 24, action });
+  });
+  const minutes = 47 + Math.floor(s.time / 60);
+  text(ctx, `${ASSIGNED} 23:${pad(minutes % 60)}:${pad(Math.floor(s.time) % 60)}`, 48, 640, { size: 11, color: C.claro });
+  text(ctx, 'CustodiaOS v2.0.6', 48, 664, { size: 11, color: C.claro });
   [
-    '1. Ubicar la caja del objeto en las estanterías.',
-    '2. Trasladar el objeto a la mesa B3-M1.',
-    '3. Retirar los sellos en orden inverso al de',
-    '   su colocación. No arrancarlos.',
-    '4. Registrar residuos y detalles observados.',
-    '5. Archivar el expediente antes de pasar al',
-    '   siguiente objeto del lote.',
-  ].forEach((line, i) => {
-    ctx.fillStyle = C.text;
-    ctx.fillText(line, x, y + 84 + i * 34);
+    ['[?]', 'tab:help'],
+    ['[⚙]', 'tab:forms'],
+    ['[⏻]', s.signedIn ? 'exit' : 'login#power'],
+  ].forEach(([label, action], i) => {
+    const x = 48 + i * 40;
+    text(ctx, label, x, 692, { size: 12, color: C.amarillo, glow: s.hover === action ? GLOW_Y : null });
+    hotspots.push({ x: x - 4, y: 680, w: 36, h: 24, action });
   });
-  ctx.fillStyle = C.accent;
-  ctx.font = font('mono', 18, 600);
-  ctx.fillText('No dirigirle la palabra al objeto.', x, y + 360);
-  ctx.fillStyle = C.dim;
-  ctx.font = font('mono', 17, 400);
-  ctx.fillText('Nota: la caja B3-11 figura vacía en el sistema.', x, y + 400);
 }
+
+function drawStatus(ctx, s) {
+  box(ctx, X, 700, W, 44, { fill: C.marco });
+  text(ctx, HINTS[s.tab] ?? HINTS.session, 244, 722, { size: 11, color: C.claro });
+  text(ctx, s.signedIn ? handle(s.operator) : 'sin sesión', RIGHT - 20, 722, { size: 11, color: C.amarillo, align: 'right' });
+}
+
+function drawLogin(ctx, s, hotspots) {
+  heading(ctx, 'Identificación');
+  text(ctx, 'IDENTIFICACIÓN', X, 117, { size: 55, weight: 700, kind: 'display', glow: GLOW_P });
+  text(ctx, 'REQUERIDA', X, 171, { size: 55, weight: 700, kind: 'display', glow: GLOW_P });
+  wrap(ctx, 'Toda inspección del Depósito B3 queda registrada a nombre del operador.', 560, 14).forEach((line, i) =>
+    text(ctx, line, X, 270 + i * 19, { size: 14, color: C.claro }),
+  );
+  const fieldHover = s.hover === 'login#field';
+  box(ctx, X, 324, 560, 56, { fill: C.marco, stroke: C.amarillo, glow: fieldHover ? GLOW_Y : null });
+  const prompt = text(ctx, '> operador:', 242, 353, { size: 15 });
+  if (s.cursor) {
+    ctx.save();
+    ctx.shadowColor = GLOW_R;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = C.rojo;
+    ctx.fillRect(242 + prompt + 20, 340, 11, 24);
+    ctx.restore();
+  }
+  hotspots.push({ x: X, y: 324, w: 560, h: 56, action: 'login#field' });
+  let kx = X;
+  [
+    ['[1] Anónimo', 'fill'],
+    ['[2] Google', 'outline'],
+    ['[3] Correo', 'outline'],
+  ].forEach(([label, variant], i) => {
+    kx += key(ctx, hotspots, s, { x: kx, y: 404, label, variant, action: `login#${i + 1}` }) + 10;
+  });
+  box(ctx, X, 472, 560, 64, { fill: C.fondo, stroke: C.rojo, glow: GLOW_R });
+  text(ctx, '!', 246, 504, { size: 16, weight: 700, kind: 'display', color: C.rojoTexto });
+  text(ctx, `Sin sesión. El lote ${LOT} está bloqueado.`, 270, 504, { size: 13, color: C.rojoTexto });
+  key(ctx, hotspots, s, { x: X, y: 572, label: '[ENTER] Ingresar', variant: 'fill', action: 'login#enter' });
+}
+
+function drawDesk(ctx, s, hotspots) {
+  heading(ctx, 'Sesión', 'Sesión activa');
+  box(ctx, X, 108, W, 232, { fill: C.marco });
+  // Foto del legajo: una silueta, como en el Figma.
+  ctx.fillStyle = '#2d2d2f';
+  ctx.fillRect(244, 128, 124, 124);
+  ctx.fillStyle = '#4e4e51';
+  ctx.beginPath();
+  ctx.arc(306, 174, 24, 0, Math.PI * 2);
+  ctx.fill();
+  box(ctx, 262, 210, 88, 42, { fill: '#4e4e51', r: [12, 12, 0, 0] });
+  text(ctx, handle(s.operator), 388, 139, { size: 14, weight: 500 });
+  text(ctx, `Asignado ${ASSIGNED}`, 980, 139, { size: 12, align: 'right' });
+  text(ctx, 'Ventana · personal de apoyo. Sin técnica.', 388, 169, { size: 13 });
+  text(ctx, `Enlace: ${PERSISTENCE_LABEL[s.persistence] ?? '—'}`, 388, 195, { size: 12, color: C.claro });
+  hline(ctx, 244, 980, 272);
+  const archived = s.cases.filter((c) => c.status === 'archived').length;
+  let sx = 244;
+  sx += text(ctx, String(archived), sx, 302, { size: 13, weight: 500 }) + 8;
+  sx += text(ctx, 'Archivados', sx, 302, { size: 13 }) + 34;
+  sx += text(ctx, String(s.cases.length - archived), sx, 302, { size: 13, weight: 500 }) + 8;
+  text(ctx, 'Pendientes', sx, 302, { size: 13 });
+  const cw = key(ctx, hotspots, s, { x: 968, y: 287, label: '[C] Cambiar', action: 'login#change', right: true });
+  key(ctx, hotspots, s, { x: 968 - cw - 10, y: 287, label: '[I] Índice', action: 'index', right: true });
+
+  const tw = key(ctx, hotspots, s, { x: X, y: 360, label: 'Órdenes', variant: 'fill' });
+  key(ctx, hotspots, s, { x: X + tw + 10, y: 360, label: 'Expedientes', action: 'tab:lot' });
+
+  const revealed = s.hiddenStatus === 'revealed';
+  box(ctx, X, 408, W, 202, { fill: C.marco });
+  text(ctx, '@superior_sin_firma', 242, 435, { size: 13, weight: 500 });
+  text(ctx, `23:02 · ${s.cases.length} objetos · 1 lote`, 982, 435, { size: 12, align: 'right' });
+  const ow = text(ctx, ORDER, 242, 464, { size: 13, weight: 500, color: revealed ? C.claro : C.papel });
+  ctx.fillStyle = revealed ? C.rojo : C.papel;
+  ctx.fillRect(242, revealed ? 463 : 472, ow, revealed ? 2 : 1);
+  [`Control de integridad del lote ${LOT}`, 'Retirar sellos en orden inverso', 'Archivar cada expediente antes de salir'].forEach((line, i) =>
+    text(ctx, `• ${line}`, 242, 495 + i * 20, { size: 13 }),
+  );
+  hline(ctx, 242, 982, 557);
+  const aw = key(ctx, hotspots, s, { x: 242, y: 567, label: '[↵] Abrir', variant: 'plain', action: 'tab:lot' });
+  key(ctx, hotspots, s, { x: 242 + aw + 22, y: 567, label: '[S] Firmar', variant: 'plain', action: 'index:sesion' });
+  let tx = 982;
+  tx -= tag(ctx, { x: tx, y: 571, label: revealed ? 'no figura en el archivo' : 'sin firma', tone: 'alert' }) + 8;
+  tx -= tag(ctx, { x: tx, y: 571, label: 'B3' }) + 8;
+  tag(ctx, { x: tx, y: 571, label: 'mantenimiento' });
+}
+
+const LOT_STATUS = {
+  pending: ['pendiente', 'normal'],
+  archived: ['archivado', 'normal'],
+  locked: ['bloqueado', 'muted'],
+};
+
+function lotRows(s) {
+  const rows = s.cases.map((c) => ({
+    id: c.id,
+    code: c.code,
+    origin: shortPlace(c.place),
+    box: c.box,
+    dots: c.dots ?? Array.from({ length: c.seals }, () => c.status !== 'archived'),
+    status: LOT_STATUS[c.status] ?? LOT_STATUS.locked,
+    locked: c.status === 'locked',
+    action: c.status !== 'locked' ? (s.signedIn ? `case:${c.id}` : `login#case${c.id}`) : null,
+    title: `${c.code} · ${shortPlace(c.place)}`,
+    desc: `${placeKind(c.place)}. ${c.seals} sellos de papel, caja ${c.box}.${c.status === 'archived' ? ' Archivado: se puede volver a revisar.' : c.status === 'locked' ? ' Bloqueado hasta archivar el anterior.' : ''}`,
+    color: C.papel,
+  }));
+  const revealed = s.hiddenStatus === 'revealed';
+  rows.push({
+    id: '00',
+    code: 'B3-11',
+    origin: revealed ? 'sin registro' : 'vacía',
+    box: 'B3-11',
+    dots: null,
+    status: revealed ? ['revisar', 'active'] : ['vacía', 'muted'],
+    locked: !revealed,
+    alert: revealed,
+    action: revealed ? (s.signedIn ? 'case:00' : 'login#case00') : null,
+    title: revealed ? 'B3-11 · Sin registro' : 'B3-11 · Vacía',
+    desc: revealed
+      ? 'La caja que el sistema da por vacía. Adentro hay un dedo sin sellos y el registro de la Ventana N.º 0391.'
+      : 'Según el sistema, este lugar nunca se usó.',
+    color: revealed ? C.rojoTexto : C.papel,
+  });
+  return rows;
+}
+
+function drawLot(ctx, s, hotspots) {
+  heading(ctx, 'Lote', `Lote ${LOT}`);
+  const cols = [244, 344, 554, 664];
+  ['EXP', 'ORIGEN', 'CAJA', 'SELLOS'].forEach((label, i) => text(ctx, label, cols[i], 120, { size: 11, color: C.claro, spacing: 1.1 }));
+  text(ctx, 'ESTADO', 980, 120, { size: 11, color: C.claro, spacing: 1.1, align: 'right' });
+  const rows = lotRows(s);
+  const hovered = rows.find((r) => r.action && r.action === s.hover);
+  const selected = hovered ?? rows.find((r) => r.alert) ?? rows.find((r) => r.status[0] === 'pendiente') ?? rows[0];
+  rows.forEach((row, i) => {
+    const y = 140 + i * 72;
+    const isSelected = row === selected;
+    ctx.save();
+    if (row.locked) ctx.globalAlpha = 0.5;
+    if (row.alert) box(ctx, X, y, W, 60, { fill: C.fondo, stroke: C.rojo, glow: isSelected ? GLOW_R : null });
+    else box(ctx, X, y, W, 60, { fill: C.marco, stroke: isSelected && !row.locked ? C.amarillo : null, glow: GLOW_Y });
+    text(ctx, row.code, cols[0], y + 30, { size: 13, weight: 500, color: row.color });
+    text(ctx, row.origin, cols[1], y + 30, { size: 13, color: row.color });
+    text(ctx, row.box, cols[2], y + 30, { size: 13, color: row.color });
+    sealDots(ctx, cols[3], y + 30, row);
+    tag(ctx, { x: 975, y: y + 19, label: row.status[0], tone: row.status[1] });
+    ctx.restore();
+    if (row.action) hotspots.push({ x: X, y, w: W, h: 60, action: row.action });
+  });
+  const dy = 140 + rows.length * 72 + 4;
+  box(ctx, X, dy, W, 170, { fill: C.marco, stroke: selected.alert ? C.rojo : null, glow: GLOW_R });
+  text(ctx, selected.title.toUpperCase(), 244, dy + 38, { size: 28, weight: 700, kind: 'display', glow: GLOW_P, color: selected.alert ? C.rojoTexto : C.papel });
+  wrap(ctx, s.signedIn ? selected.desc : `${selected.desc} Identificate para abrirlo.`, 736, 13).forEach((line, i) =>
+    text(ctx, line, 244, dy + 80 + i * 18, { size: 13, color: C.claro }),
+  );
+  if (selected.action) {
+    const label = s.signedIn ? (selected.status[0] === 'archivado' ? '[↵] Revisar expediente' : '[↵] Abrir expediente') : '[↵] Identificarse';
+    const kw = key(ctx, hotspots, s, { x: 244, y: dy + 118, label, variant: selected.alert ? 'red' : 'fill', action: selected.action });
+    key(ctx, hotspots, s, { x: 244 + kw + 10, y: dy + 118, label: '[I] Índice completo', action: s.signedIn ? 'index:lote' : 'login#index' });
+  }
+}
+
+function drawLog(ctx, s, hotspots) {
+  heading(ctx, 'Registro', 'Registro de actividad');
+  const revealed = s.hiddenStatus === 'revealed';
+  const max = revealed ? 3 : 9;
+  const entries = s.log.map(logParts).slice(-max);
+  let y = 108;
+  const row = (at, label, detail, color = C.papel, detailColor = C.claro) => {
+    text(ctx, at, X, y + 24, { size: 13, weight: 500, color });
+    text(ctx, label.length > 52 ? `${label.slice(0, 51)}…` : label, X + 90, y + 24, { size: 13, color });
+    if (detail) text(ctx, detail, RIGHT, y + 24, { size: 12, color: detailColor, align: 'right' });
+    hline(ctx, X, RIGHT, y + 50, C.marco);
+    y += 52;
+  };
+  if (!revealed) row('23:02', `${ORDER} emitida`, '@superior_sin_firma', C.claro);
+  if (!entries.length) row('--:--', 'Sin actividad registrada en esta inspección.', '', C.claro);
+  entries.forEach((e) => row(e.at, e.text, e.detail, C.papel, e.bad ? C.rojoTexto : C.claro));
+  if (revealed) {
+    y += 6;
+    box(ctx, X, y, W, 46, { fill: C.fondo, stroke: C.rojo, glow: GLOW_R });
+    text(ctx, '23:02', X + 12, y + 23, { size: 13, weight: 500, color: C.rojoTexto });
+    box(ctx, X + 102, y + 15, 300, 16, { fill: C.rojo, r: 1 });
+    tag(ctx, { x: RIGHT - 16, y: y + 12, label: 'eliminado', tone: 'active' });
+    y += 58;
+    box(ctx, X, y, W, 200, { fill: C.rojo });
+    text(ctx, ORDER, X + 24, y + 30, { size: 13, color: C.tinta });
+    text(ctx, 'AUTORIZACIÓN', X + 24, y + 66, { size: 39, weight: 700, kind: 'display', color: C.tinta });
+    text(ctx, 'NO ENCONTRADA', X + 24, y + 104, { size: 39, weight: 700, kind: 'display', color: C.tinta });
+    text(ctx, 'La orden ya no figura en el sistema central.', X + 24, y + 168, { size: 13, color: C.tinta });
+    key(ctx, hotspots, s, { x: RIGHT - 34, y: y + 150, label: '[R] Reintentar', variant: 'ink', action: 'index:registro', right: true });
+    y += 200;
+  }
+  key(ctx, hotspots, s, { x: X, y: y + 24, label: '[↵] Abrir el registro completo', action: s.signedIn ? 'index:registro' : 'login#log' });
+}
+
+function drawBarrier(ctx, s) {
+  const { percent, stress, status } = barrierReading(s.leak, s.influence);
+  const critical = status === 'crítica';
+  text(ctx, 'BARRERA DEL DEPÓSITO', X, 43, { size: 11, weight: 500, color: C.amarillo, glow: GLOW_Y, spacing: 1.54 });
+  // La lectura tiembla un poco cuando la barrera no está estable.
+  const r = rng(Math.floor(s.time * 6));
+  const shake = stress > 0.15 ? (r() - 0.5) * stress * 3 : 0;
+  const reading = `${percent}%`;
+  text(ctx, reading, X - 4 + shake, 132, { size: 130, weight: 500, kind: 'display', color: critical ? C.rojoTexto : C.amarillo, glow: critical ? GLOW_R : GLOW_Y });
+  // La etiqueta va a la derecha del número; con "100%" se corre para no pisarlo.
+  const tagX = Math.max(524, Math.ceil(X - 4 + measure(ctx, reading, 130, 500, 'display')) + 20);
+  const label = status.toUpperCase();
+  const lw = Math.ceil(measure(ctx, label, 12)) + 28;
+  box(ctx, tagX, 142, lw, 30, { fill: critical ? C.rojo : C.amarillo, r: 2 });
+  text(ctx, label, tagX + 14, 158, { size: 12, color: critical ? C.papel : C.tinta });
+  const readAt = String(s.log.at(-1)?.at ?? SETTING.time).slice(0, 5);
+  text(ctx, `Lectura ${readAt} · sensor B3-S1`, tagX, 196, { size: 12 });
+  barrierCells(percent, stress).forEach((tone, i) =>
+    box(ctx, X + i * 22, 294, 18, 36, { fill: tone === 'y' ? C.amarillo : tone === 'r' ? C.rojo : C.marco, r: 2 }),
+  );
+  text(ctx, 'estable', X, 344, { size: 11, color: C.claro });
+  text(ctx, 'crítico', X + 656, 344, { size: 11, color: C.claro, align: 'right' });
+  text(ctx, 'energía filtrada', X, 392, { size: 13 });
+  cells(ctx, X + 220, 384, LEAK_LIMIT, Math.min(s.leak, LEAK_LIMIT), C.rojo, 18);
+  text(ctx, `${s.leak}/${LEAK_LIMIT}`, RIGHT, 392, { size: 13, weight: 500, color: s.leak > 0 ? C.rojoTexto : C.papel, align: 'right' });
+  hline(ctx, X, RIGHT, 416, C.marco);
+  text(ctx, 'memoria', X, 438, { size: 13 });
+  cells(ctx, X + 220, 430, s.memoryTotal, s.memory, C.amarillo, 18);
+  text(ctx, `${s.memory}/${s.memoryTotal}`, RIGHT, 438, { size: 13, weight: 500, align: 'right' });
+  hline(ctx, X, RIGHT, 462, C.marco);
+  const alert =
+    s.influence >= 2 || s.hiddenStatus === 'revealed'
+      ? 'Residuos sin registro detectados en la caja B3-11.'
+      : s.leak > 0
+        ? `Fuga registrada: ${s.leak} de energía maldita en el depósito.`
+        : null;
+  if (alert) {
+    box(ctx, X, 502, W, 72, { fill: C.rojo });
+    text(ctx, '!', X + 26, 538, { size: 18, weight: 700, kind: 'display', color: C.tinta });
+    text(ctx, alert, X + 52, 538, { size: 13, color: C.tinta });
+  }
+}
+
+const RULES = ['Retirar los sellos en orden inverso al de colocación.', 'Usar guantes durante toda la inspección.', 'No dirigirle la palabra al objeto.'];
+
+function drawProtocol(ctx, s, hotspots) {
+  heading(ctx, 'Protocolo', 'Protocolo de inspección');
+  RULES.forEach((rule, i) => {
+    const y = 112 + i * 72;
+    box(ctx, X, y, W, 60, { fill: C.marco });
+    text(ctx, pad(i + 1), 242, y + 30, { size: 28, weight: 700, kind: 'display', color: C.amarillo, glow: GLOW_Y });
+    text(ctx, rule, 304, y + 30, { size: 13 });
+  });
+  box(ctx, X, 328, W, 60, { fill: C.fondo, stroke: C.rojo, glow: GLOW_R });
+  text(ctx, '04', 242, 358, { size: 28, weight: 700, kind: 'display', color: C.rojoTexto, glow: GLOW_R });
+  text(ctx, 'La caja B3-11 figura vacía en el sistema.', 304, 358, { size: 13, color: C.rojoTexto });
+  tag(ctx, { x: 980, y: 347, label: '¿?', tone: 'alert' });
+  box(ctx, X, 424, W, 170, { fill: C.marco });
+  text(ctx, 'CONFORMIDAD DEL OPERADOR', 246, 452, { size: 12, weight: 500, spacing: 1.2 });
+  text(ctx, 'Leí y acepto el protocolo vigente del Depósito B3.', 246, 482, { size: 13 });
+  ctx.fillStyle = C.claro;
+  ctx.fillRect(246, 534, 360, 1.5);
+  text(ctx, s.signedIn ? handle(s.operator) : 'sin sesión', 246, 554, { size: 12 });
+  key(ctx, hotspots, s, { x: 976, y: 532, label: '[F] Firmar', action: s.signedIn ? 'index:protocolo' : 'login#sign', right: true });
+}
+
+const FORMS = [
+  ['B3-01', 'Acceso de personal de apoyo', 'login#form'],
+  ['B3-07', 'Control de integridad del lote', 'index:lote'],
+  ['B3-09', 'Registro de actividad', 'index:registro'],
+  ['B3-12', 'Ajustes del equipo: sonido, efectos y calidad', 'index:formularios'],
+];
+
+function drawForms(ctx, s, hotspots) {
+  heading(ctx, 'Formularios', 'Formularios y ajustes');
+  FORMS.forEach(([code, title, target], i) => {
+    const y = 112 + i * 72;
+    const action = target.startsWith('index') && !s.signedIn ? `login#${code}` : target;
+    const hover = s.hover === action;
+    box(ctx, X, y, W, 60, { fill: C.marco, stroke: hover ? C.amarillo : null, glow: GLOW_Y });
+    text(ctx, `FORM. ${code}`, 244, y + 30, { size: 12, weight: 500, color: C.amarillo, spacing: 1.1 });
+    text(ctx, title, 384, y + 30, { size: 13 });
+    text(ctx, '[↵] Abrir', 980, y + 30, { size: 12, color: hover ? C.amarillo : C.claro, align: 'right' });
+    hotspots.push({ x: X, y, w: W, h: 60, action });
+  });
+  wrap(ctx, 'Los formularios se completan en el sistema de expedientes. Cada cambio queda registrado a nombre del operador.', 736, 13).forEach(
+    (line, i) => text(ctx, line, X, 432 + i * 19, { size: 13, color: C.claro }),
+  );
+}
+
+const STEPS = [
+  ['Buscar el dedo', 'Abrí su caja en la estantería y llevalo a la mesa de inspección.'],
+  ['Levantar el sello', 'Mantené presionado cada sello hasta que se suelte solo.'],
+  ['Leer el residuo', 'Algunas palabras del recuerdo esconden detalles: suman memoria.'],
+  ['Marcar el estado', 'Intacto, fisurado o dañado: mirá el papel antes de elegir.'],
+  ['Archivar', 'Archivar un expediente habilita el siguiente del lote.'],
+];
+
+function drawHelp(ctx) {
+  heading(ctx, 'Ayuda', 'Cómo se inspecciona');
+  STEPS.forEach(([title, body], i) => {
+    const y = 112 + i * 72;
+    box(ctx, X, y, W, 60, { fill: C.marco });
+    text(ctx, pad(i + 1), 242, y + 30, { size: 28, weight: 700, kind: 'display', color: C.amarillo, glow: GLOW_Y });
+    text(ctx, title, 304, y + 21, { size: 13, weight: 500 });
+    text(ctx, body, 304, y + 40, { size: 12, color: C.claro });
+  });
+  text(ctx, 'Los sellos se retiran en orden inverso al de colocación.', X, 492, { size: 13, color: C.claro });
+}
+
+const SCREENS = { lot: drawLot, log: drawLog, barrier: drawBarrier, protocol: drawProtocol, forms: drawForms, help: drawHelp };
 
 /**
- * Interfaz de la terminal B3-T02. Se dibuja en canvas y vuelve con las zonas clickeables
- * (hotspots) en coordenadas del canvas, para el raycasting sobre la pantalla.
+ * Interfaz de la terminal B3-T02: CustodiaOS, igual que la interfaz web (V3.2 del Figma).
+ * Se dibuja en canvas y vuelve con las zonas clickeables (hotspots) en coordenadas del canvas,
+ * para el raycasting sobre la pantalla.
  */
 export function drawTerminalScreen(ctx, w, h, s) {
+  requestFonts();
   const hotspots = [];
   ctx.save();
-  ctx.fillStyle = C.bg;
+  ctx.fillStyle = C.fondo;
   ctx.fillRect(0, 0, w, h);
 
-  // Encabezado.
-  ctx.fillStyle = C.text;
-  ctx.fillRect(0, 0, w, 64);
-  ctx.fillStyle = C.bg;
-  ctx.beginPath();
-  ctx.arc(36, 32, 20, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = C.text;
-  ctx.font = font('sans', 22, 700);
-  ctx.textAlign = 'center';
-  ctx.fillText('呪', 36, 40);
-  ctx.textAlign = 'left';
-  ctx.fillStyle = C.bg;
-  ctx.font = font('sans', 24, 700);
-  ctx.fillText('呪術高専', 70, 41);
-  ctx.font = font('mono', 17, 600);
-  ctx.fillText('SISTEMA DE CUSTODIA · DEPÓSITO B3', 180, 39);
-  const seconds = Math.floor(s.time) % 60;
-  const minutes = 47 + Math.floor(s.time / 60);
-  ctx.textAlign = 'right';
-  ctx.font = font('mono', 20, 600);
-  ctx.fillText(`JUE 15/03/2018 23:${pad(minutes % 60)}:${pad(seconds)}`, w - 24, 40);
-  ctx.textAlign = 'left';
-
-  // Línea de estado.
-  ctx.fillStyle = C.panel;
-  ctx.fillRect(0, 64, w, 36);
-  ctx.font = font('mono', 16, 500);
-  ctx.fillStyle = C.dim;
-  ctx.fillText('OPERADOR', 20, 88);
-  ctx.fillStyle = s.signedIn ? C.text : C.accent;
-  ctx.fillText(s.signedIn ? String(s.operator ?? '').toUpperCase().slice(0, 18) : 'SIN SESIÓN', 112, 88);
-  ctx.fillStyle = C.dim;
-  ctx.fillText('ENLACE', 380, 88);
-  ctx.fillStyle = s.persistence === 'offline' ? C.accent : C.text;
-  ctx.fillText(PERSISTENCE_LABEL[s.persistence] ?? '—', 450, 88);
-  ctx.fillStyle = C.dim;
-  ctx.fillText('TERMINAL B3-T02', w - 180, 88);
-
-  // Menú lateral.
-  const tab = s.tab;
-  SCREEN_TABS.forEach((item, i) => {
-    const y = 120 + i * 70;
-    const action = `tab:${item.id}`;
-    const selected = tab === item.id;
-    const hover = s.hover === action;
-    ctx.fillStyle = selected ? C.text : hover ? 'rgba(232,224,200,0.14)' : 'rgba(232,224,200,0.04)';
-    ctx.fillRect(16, y, 236, 58);
-    ctx.fillStyle = selected ? C.bg : C.dim;
-    ctx.font = font('mono', 15, 600);
-    ctx.fillText(item.key, 30, y + 35);
-    ctx.fillStyle = selected ? C.bg : C.text;
-    ctx.font = font('mono', 19, 600);
-    ctx.fillText(item.label, 72, y + 36);
-    hotspots.push({ x: 16, y, w: 236, h: 58, action });
-  });
-  button(ctx, hotspots, {
-    x: 16,
-    y: 500,
-    w: 236,
-    h: 64,
-    label: s.signedIn ? '▶ ÍNDICE' : '▶ IDENTIFICARSE',
-    action: s.signedIn ? 'index' : 'login',
-    hover: s.hover,
-    primary: true,
-  });
-  ctx.fillStyle = C.dim;
-  ctx.font = font('mono', 14, 400);
-  ['Lote 2018-B3', 'Nivel -3 · Sala de', 'Catalogación'].forEach((line, i) => ctx.fillText(line, 20, 610 + i * 22));
-
-  // Separador vertical.
-  ctx.fillStyle = C.line;
-  ctx.fillRect(268, 112, 2, 580);
-
-  // Panel principal.
-  const px = 292;
-  const py = 112;
-  const pw = w - px - 16;
-  if (tab === 'session') drawSession(ctx, s, hotspots, px, py, pw);
-  else if (tab === 'lot') drawLot(ctx, s, hotspots, px, py, pw);
-  else if (tab === 'log') drawLog(ctx, s, px, py, pw);
-  else if (tab === 'barrier') drawBarrier(ctx, s, px, py, pw);
-  else drawProtocol(ctx, px, py);
-
-  // Línea de comandos.
-  ctx.fillStyle = C.panel;
-  ctx.fillRect(0, h - 64, w, 64);
-  ctx.fillStyle = C.ok;
-  ctx.font = font('mono', 20, 500);
-  const command = { session: s.signedIn ? 'whoami' : 'login', lot: 'lote --listar 2018-B3', log: 'registro --ultimos', barrier: 'barrera --monitor', protocol: 'man inspeccion' }[tab] ?? '';
-  const prompt = `B3-T02> ${command}`;
-  ctx.fillText(prompt, 20, h - 26);
-  if (s.cursor) ctx.fillRect(28 + ctx.measureText(prompt).width, h - 46, 12, 24);
-  ctx.fillStyle = C.dim;
-  ctx.font = font('mono', 15, 400);
-  ctx.textAlign = 'right';
-  ctx.fillText('CLICK EN EL MENÚ · TODA SESIÓN QUEDA REGISTRADA', w - 20, h - 28);
-  ctx.textAlign = 'left';
+  drawSide(ctx, s, hotspots);
+  if (s.tab === 'session' || !SCREENS[s.tab]) (s.signedIn ? drawDesk : drawLogin)(ctx, s, hotspots);
+  else SCREENS[s.tab](ctx, s, hotspots);
+  drawStatus(ctx, s);
 
   // Influencia: la pantalla también se corrompe.
   if (s.influence >= 1) {
@@ -404,30 +570,32 @@ export function drawTerminalScreen(ctx, w, h, s) {
       ctx.drawImage(ctx.canvas, 0, sy, w, sh, (r() - 0.5) * 30 * s.influence, sy, w, sh);
     }
     if (s.influence >= 2) {
-      ctx.fillStyle = 'rgba(212,69,47,0.85)';
+      ctx.fillStyle = 'rgba(224,87,77,0.85)';
       ctx.font = font('brush', 44);
+      ctx.textBaseline = 'alphabetic';
       ctx.fillText(s.influence >= 3 ? 'ya son tuyos' : 'ya casi', w - 300, h - 110);
     }
   }
 
-  // Barrido, viñeta y una franja de refresco que baja: aspecto de tubo.
+  // Líneas de barrido (1 px cada 4, como el Figma), franja de refresco y viñeta: aspecto de tubo.
   ctx.fillStyle = 'rgba(0,0,0,0.22)';
-  for (let y = 0; y < h; y += 3) ctx.fillRect(0, y, w, 1);
+  for (let y = 0; y < h; y += 4) ctx.fillRect(0, y, w, 1);
   const band = ((s.time * 0.18) % 1) * (h + 200) - 100;
   const bandGrad = ctx.createLinearGradient(0, band - 80, 0, band + 80);
-  bandGrad.addColorStop(0, 'rgba(232,224,200,0)');
-  bandGrad.addColorStop(0.5, 'rgba(232,224,200,0.05)');
-  bandGrad.addColorStop(1, 'rgba(232,224,200,0)');
+  bandGrad.addColorStop(0, 'rgba(237,237,235,0)');
+  bandGrad.addColorStop(0.5, 'rgba(237,237,235,0.04)');
+  bandGrad.addColorStop(1, 'rgba(237,237,235,0)');
   ctx.fillStyle = bandGrad;
   ctx.fillRect(0, band - 80, w, 160);
-  const vignette = ctx.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, h * 0.85);
+  const vignette = ctx.createRadialGradient(w / 2, h / 2, h * 0.4, w / 2, h / 2, h * 0.9);
   vignette.addColorStop(0, 'rgba(0,0,0,0)');
-  vignette.addColorStop(1, 'rgba(0,0,0,0.55)');
+  vignette.addColorStop(1, 'rgba(0,0,0,0.45)');
   ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, w, h);
   ctx.restore();
   return hotspots;
 }
+
 
 // Monitor CRT beige: frente con bisel, tubo trasero ahusado y pantalla curva.
 function createMonitor(plastic, darkPlastic) {

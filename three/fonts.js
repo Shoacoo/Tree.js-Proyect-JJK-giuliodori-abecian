@@ -1,11 +1,12 @@
-// next/font registra las tipografías con nombres generados (por ejemplo "__IBM_Plex_Mono_1a2b").
+// next/font registra las tipografías con nombres generados (por ejemplo "__DM_Mono_1a2b").
 // El canvas necesita ese nombre real: se lee de las variables CSS que define el layout.
 const FALLBACK = {
-  mono: '"IBM Plex Mono", ui-monospace, monospace',
+  mono: '"DM Mono", ui-monospace, monospace',
+  display: '"Space Grotesk", system-ui, sans-serif',
   sans: '"Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", sans-serif',
   brush: '"Yuji Syuku", "Hiragino Mincho ProN", "Noto Serif JP", serif',
 };
-const VARS = { mono: '--font-plex', sans: '--font-zen', brush: '--font-yuji' };
+const VARS = { mono: '--font-dm-mono', display: '--font-grotesk', sans: '--font-zen', brush: '--font-yuji' };
 const cache = {};
 
 export function fontStack(kind = 'mono') {

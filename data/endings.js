@@ -9,6 +9,19 @@ export const ENDINGS = {
     id: 'voto',
     title: 'Voto Vinculante',
     kind: 'Final verdadero',
+    // El documento que queda en el sistema (pantalla "Final · Voto" del Figma).
+    document: {
+      eyebrow: 'Informe · 16/03/2018',
+      code: 'INF-2018-0316',
+      tag: 'final verdadero',
+      heading: 'Sin novedades',
+      lines: [
+        'Control de integridad completo. Lote 2018-B3 sin observaciones.',
+        'El operador no recuerda la caja B3-11 ni la orden de mantenimiento.',
+        'Firmado con una letra que no reconoce.',
+      ],
+      signed: true,
+    },
     summary:
       'Aceptaste el pacto. Olvidás todo lo que viste en la bóveda y nadie tiene nada que callar.',
     epilogue: [
@@ -21,6 +34,15 @@ export const ENDINGS = {
     id: 'ejecutado',
     title: 'Ejecutado',
     kind: 'Final',
+    document: {
+      eyebrow: 'Junta de superiores · 16/03/2018',
+      code: 'RES-2018-0316',
+      tag: 'orden eliminada',
+      heading: 'Ejecución',
+      // Los números son renglones tachados (ancho en px).
+      lines: ['Apertura no autorizada de sellos de grado especial.', 456, 478, 'Expediente archivado como objeto maldito en la caja B3-11.'],
+      signed: false,
+    },
     summary:
       'La orden que te autorizaba desapareció del registro. Para la junta, abriste sellos de grado especial sin permiso.',
     epilogue: [

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import InspectionNotes from '@/components/InspectionNotes';
 import InspectionPanel from '@/components/InspectionPanel';
 import MangaFlashback from '@/components/MangaFlashback';
-import { PersistenceBadge } from '@/components/Terminal';
+import Shell, { Key, PersistenceBadge, ScreenHead, useHotkeys } from '@/components/Shell';
 import { CASES, HIDDEN_BOX, MEMORY_TOTAL, VAULT_BOXES, getCase, getCaseByBox, nextCaseId } from '@/data/cases';
 import { isCaseUnlocked, useProgress } from '@/hooks/useProgress';
 import { qualityLabel, useQuality } from '@/hooks/useQuality';
@@ -59,7 +59,7 @@ function describeBox(code, status) {
  * Bóveda B3: la sala donde empieza todo. El usuario busca los dedos en las estanterías,
  * los lleva a la mesa y entra al sistema desde la terminal.
  */
-export default function Vault({ intro }) {
+export default function Vault({ intro, legal }) {
   const router = useRouter();
   const { progress, hydrated, user, signedIn, operator, influence, corruption, settings, setSettings, persistence, auth, peelSeal, markSeal, findMemory, archiveCase } =
     useProgress();
@@ -117,7 +117,7 @@ export default function Vault({ intro }) {
     setHumDread(corruption);
     if (!dreadAnnounced.current && corruptionFrom !== null && corruption - corruptionFrom > 0.04) {
       dreadAnnounced.current = true;
-      setMessage({ text: dreadMessage(corruption) }); // eslint-disable-line react-hooks/set-state-in-effect
+      setMessage({ text: dreadMessage(corruption) });
     }
     try {
       window.sessionStorage.setItem(SEEN_CORRUPTION_KEY, String(corruption));
@@ -145,9 +145,16 @@ export default function Vault({ intro }) {
   }, []);
 
   const activate = useCallback(
-    (what) => {
+    (action) => {
+      // La pantalla de la terminal distingue sus botones con un sufijo ("login#enter").
+      const what = action.split('#')[0];
       if (what === 'terminal' || what === 'index') {
         router.push(signedIn ? '/indice' : '/acceso');
+        return;
+      }
+      // "index:registro" abre esa pestaña del sistema de expedientes.
+      if (what.startsWith('index:')) {
+        router.push(signedIn ? `/indice#${what.slice(6)}` : '/acceso');
         return;
       }
       if (what === 'exit') {
@@ -278,6 +285,11 @@ export default function Vault({ intro }) {
       // Ignorado.
     }
   };
+  const toggleSound = () => setSettings((s) => ({ ...s, sound: !s.sound }));
+  const toggleReduce = () => setSettings((s) => ({ ...s, reduceEffects: !s.reduceEffects }));
+
+  // Teclas de la pantalla de inicio.
+  useHotkeys({ Enter: enter, s: toggleSound, r: toggleReduce, c: () => router.push('/creditos') }, !entered);
 
   const openInfo = openBox ? describeBox(openBox, boxStatus[openBox]) : null;
   const tableCase = CASES.find((c) => c.id === tableCaseId);
@@ -304,7 +316,16 @@ export default function Vault({ intro }) {
   const closeNotes = useCallback(() => setNotesTab(null), []);
   const closeFlashback = useCallback(() => setFlashbackId(null), []);
   const screenData = {
-    cases: CASES.map((c) => ({ id: c.id, code: c.code, place: c.place, box: c.box, seals: c.seals.length, status: boxStatus[c.box] })),
+    cases: CASES.map((c) => ({
+      id: c.id,
+      code: c.code,
+      place: c.place,
+      box: c.box,
+      seals: c.seals.length,
+      // Un punto lleno por sello que sigue puesto.
+      dots: c.seals.map((seal) => !progress.cases[c.id]?.seals[seal.id]?.peeled),
+      status: boxStatus[c.box],
+    })),
     hiddenStatus: boxStatus[HIDDEN_BOX] ?? null,
     log: progress.log ?? [],
     leak: progress.leak ?? 0,
@@ -356,7 +377,7 @@ export default function Vault({ intro }) {
             type="button"
             className="vault__chip"
             aria-pressed={settings.sound}
-            onClick={() => setSettings((s) => ({ ...s, sound: !s.sound }))}
+            onClick={toggleSound}
           >
             Sonido {settings.sound ? 'sí' : 'no'}
           </button>
@@ -364,7 +385,7 @@ export default function Vault({ intro }) {
             type="button"
             className="vault__chip"
             aria-pressed={settings.reduceEffects}
-            onClick={() => setSettings((s) => ({ ...s, reduceEffects: !s.reduceEffects }))}
+            onClick={toggleReduce}
           >
             Reducir efectos {settings.reduceEffects ? 'sí' : 'no'}
           </button>
@@ -449,7 +470,7 @@ export default function Vault({ intro }) {
           <div className="vault__card">
             <div className="label">TERMINAL B3-T02</div>
             <p>{signedIn ? `Sesión abierta: ${operator}.` : 'Sin sesión. El sistema registra cada inspección.'}</p>
-            <p className="vault__hint">Usá el menú de la pantalla: sesión, lote, registro, barrera y protocolo.</p>
+            <p className="vault__hint">Usá el menú de la pantalla: sesión, lote, registro, barrera, protocolo, formularios y ayuda.</p>
             <button type="button" className="btn btn--primary" onClick={() => activate('terminal')}>
               {signedIn ? 'Abrir índice de expedientes' : 'Identificarse'}
             </button>
@@ -531,7 +552,7 @@ export default function Vault({ intro }) {
             aria-describedby="exit-desc"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="label" id="exit-title">SALIDA DE EMERGENCIA · 非常口</div>
+            <div className="label" id="exit-title">SALIDA DE EMERGENCIA</div>
             <p id="exit-desc">
               ¿Cerrar la sesión de {operator ?? 'este operador'}? Vas a tener que identificarte de nuevo en la terminal para seguir inspeccionando.
             </p>
@@ -548,13 +569,36 @@ export default function Vault({ intro }) {
       ) : null}
 
       {!entered ? (
-        <div className="vault__intro">
-          <div className="vault__intro-card">
+        // Inicio: la pantalla de CustodiaOS tapa la sala y deja verla solo por el recuadro de la cámara.
+        <div className="vault__start">
+          <Shell hints="[ENTER] Entrar  [S] Sonido  [R] Efectos  [C] Créditos">
+            <ScreenHead eyebrow="Inicio" title="contención" size="hero" />
             {intro}
-            <button type="button" className="btn btn--primary" onClick={enter} autoFocus>
-              Entrar a la bóveda
-            </button>
-          </div>
+            <div className="intro__scene" aria-hidden="true">
+              <span className="intro__corner intro__corner--tl" />
+              <span className="intro__corner intro__corner--tr" />
+              <span className="intro__corner intro__corner--bl" />
+              <span className="intro__corner intro__corner--br" />
+              <span className="viewport__rec">
+                <span className="rec" /> REC&nbsp; CAM-B3-01&nbsp; 15/03/2018 23:31
+              </span>
+            </div>
+            <div className="keys intro__keys">
+              <Key k="ENTER" variant="fill" onClick={enter} autoFocus>
+                Entrar a la bóveda
+              </Key>
+              <Key k="S" aria-pressed={settings.sound} onClick={toggleSound}>
+                Sonido: {settings.sound ? 'sí' : 'no'}
+              </Key>
+              <Key k="R" aria-pressed={settings.reduceEffects} onClick={toggleReduce}>
+                Efectos reducidos: {settings.reduceEffects ? 'sí' : 'no'}
+              </Key>
+              <Key k="C" href="/creditos">
+                Créditos
+              </Key>
+            </div>
+            {legal}
+          </Shell>
         </div>
       ) : null}
     </main>

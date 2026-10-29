@@ -1,9 +1,12 @@
-import { IBM_Plex_Mono, Yuji_Syuku, Zen_Kaku_Gothic_New } from 'next/font/google';
+import { DM_Mono, Space_Grotesk, Yuji_Syuku, Zen_Kaku_Gothic_New } from 'next/font/google';
 import { ProgressProvider } from '@/hooks/useProgress';
 import './globals.css';
 
-const zen = Zen_Kaku_Gothic_New({ weight: ['400', '500', '700'], subsets: ['latin'], variable: '--font-zen', display: 'swap' });
-const plex = IBM_Plex_Mono({ weight: ['400', '500', '600'], subsets: ['latin'], variable: '--font-plex', display: 'swap' });
+// Interfaz V3.2: DM Mono para el texto de la interfaz y Space Grotesk para títulos y números.
+// Zen Kaku y Yuji quedan para los carteles de la sala 3D y la expansión de dominio.
+const dmMono = DM_Mono({ weight: ['300', '400', '500'], subsets: ['latin'], variable: '--font-dm-mono', display: 'swap' });
+const grotesk = Space_Grotesk({ weight: ['500', '700'], subsets: ['latin'], variable: '--font-grotesk', display: 'swap' });
+const zen = Zen_Kaku_Gothic_New({ weight: ['400', '700'], subsets: ['latin'], variable: '--font-zen', display: 'swap' });
 const yuji = Yuji_Syuku({ weight: '400', subsets: ['latin'], variable: '--font-yuji', display: 'swap' });
 
 export const metadata = {
@@ -23,13 +26,13 @@ export const metadata = {
 };
 
 export const viewport = {
-  themeColor: '#17140F',
+  themeColor: '#262628',
 };
 
 // Server Component: estructura y metadata. El estado de la partida vive en un Client Component (ProgressProvider).
 export default function RootLayout({ children }) {
   return (
-    <html lang="es" className={`${zen.variable} ${plex.variable} ${yuji.variable}`}>
+    <html lang="es" className={`${dmMono.variable} ${grotesk.variable} ${zen.variable} ${yuji.variable}`}>
       <body>
         <ProgressProvider>{children}</ProgressProvider>
       </body>

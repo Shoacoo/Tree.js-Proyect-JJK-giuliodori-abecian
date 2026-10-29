@@ -461,7 +461,7 @@ firestore.rules
 - **Nueva vista de cámara:** agregarla a `VIEWS` en `VaultRoom3D.js` y a la barra "Moverse sin 3D" en `Vault.js`.
 - **Ajustar la expansión de dominio:** los tiempos en `TIMELINE` de `DomainExpansion.js`; las cámaras (`MODEL_CAMERA`), las luces y la intensidad de cada una (`power`) en `Domain3D.js`; la ubicación de Sukuna, el altar y la garganta en `LAYOUT` de `three/domainModels.js`.
 - **Nueva textura:** agregar un generador en `proctex.js` que devuelva `{ map, bumpMap, roughnessMap }`. Conviene reutilizar `grainField`, `cloudField` y `poreField` con `drawField` en lugar de recorrer píxeles.
-- **Texto en canvas:** usar `font('mono' | 'sans' | 'brush', tamaño, peso)` de `three/fonts.js`. `next/font` registra las fuentes con nombres generados y el canvas no las encuentra por su nombre.
+- **Texto en canvas:** usar `font('mono' | 'display' | 'sans' | 'brush', tamaño, peso)` de `three/fonts.js`. `next/font` registra las fuentes con nombres generados y el canvas no las encuentra por su nombre.
 
 ## 17. Convenciones y advertencias
 
@@ -515,7 +515,7 @@ Antes de programar se hizo un análisis del prototipo 2D (errores y propuestas),
 - Modelo del dedo: ["Sukuna's finger"](https://sketchfab.com/3d-models/sukunas-finger-0094c76440e3447a900797ede9bad5bf) de André Souza ([@asouza](https://sketchfab.com/asouza)), licencia [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/). Se usa sin modificar la malla ni las texturas (ver `public/models/sukuna-finger-LICENSE.txt`).
 - Santuario de la expansión de dominio: ["Malevolent_shrine jjk cc"](https://sketchfab.com/3d-models/malevolent-shrine-jjk-cc-df9a59de87944a65b8d77847d1008c4d) de Tyo155q ([@Tyo155q](https://sketchfab.com/Tyo155q)), licencia [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Adaptado: texturas reducidas y atributos sin uso eliminados (ver `public/models/malevolent-shrine-LICENSE.txt`).
 - Sukuna de la expansión de dominio: ["Sukuna Free Fire Skin"](https://sketchfab.com/3d-models/sukuna-free-fire-skin-81a53ae2b8604c40843bda9490cef39e) de rocklee.ff ([@rocklee.ff123](https://sketchfab.com/rocklee.ff123)), licencia [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Adaptado: materiales con luz, otra pose de brazos y cabeza animada (ver `public/models/sukuna-LICENSE.txt`). Es una skin del juego Free Fire: el diseño original probablemente sea de Garena.
-- Tipografías: Zen Kaku Gothic New, IBM Plex Mono y Yuji Syuku (Google Fonts, SIL OFL).
+- Tipografías: DM Mono, Space Grotesk, Zen Kaku Gothic New y Yuji Syuku (Google Fonts, SIL OFL).
 - Three.js (MIT), Next.js (MIT), Firebase JS SDK (Apache 2.0).
 - Sonido generado con Web Audio API. Texturas generadas en canvas.
 - Referencias: sitio de *Requiem for a Dream* (Hi-ReS!, 2000) y *A Journal of Insomnia* (NFB, 2013).

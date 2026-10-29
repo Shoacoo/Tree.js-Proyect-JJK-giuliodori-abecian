@@ -1,22 +1,21 @@
 'use client';
 
-import Link from 'next/link';
+import Shell, { Key, ScreenHead } from '@/components/Shell';
 
 export default function Error({ error, reset }) {
   return (
-    <main className="standalone">
-      <div className="label red">ERROR 0x4F · FALLA DEL SISTEMA DE EXPEDIENTES</div>
-      <h1 className="display">La terminal no respondió</h1>
-      <p className="lead">El registro de la sesión quedó guardado. Podés reintentar o volver al índice.</p>
-      <p className="mono small muted">{error?.digest ? `Código: ${error.digest}` : null}</p>
-      <div className="row">
-        <button type="button" className="btn btn--primary" onClick={() => reset()}>
-          Reintentar
-        </button>
-        <Link className="btn" href="/indice">
-          Volver al índice
-        </Link>
+    <Shell hints="[ENTER] Reintentar">
+      <ScreenHead eyebrow="Error 0x4F · falla del sistema de expedientes" tone="red" title="La terminal no respondió" />
+      <div className="stack" style={{ maxWidth: 560 }}>
+        <p className="lead">El registro de la sesión quedó guardado. Podés reintentar o volver al índice.</p>
+        {error?.digest ? <p className="small muted">Código: {error.digest}</p> : null}
+        <div className="keys">
+          <Key k="ENTER" variant="fill" onClick={() => reset()} autoFocus>
+            Reintentar
+          </Key>
+          <Key href="/indice">Volver al índice</Key>
+        </div>
       </div>
-    </main>
+    </Shell>
   );
 }

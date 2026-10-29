@@ -1,6 +1,7 @@
 'use client';
 
 import SealStatePicker from '@/components/SealStatePicker';
+import { Key } from '@/components/Shell';
 
 const HINTS = {
   idle: 'Mantené presionado un sello para despegarlo · Arrastrá para girar el dedo · Rueda para acercar',
@@ -48,12 +49,12 @@ export default function InspectionPanel({
       ) : null}
 
       <div className="inspect__tools" role="group" aria-label="Cámara y luz">
-        <button type="button" onClick={() => onZoom('in')} aria-label="Acercar">＋</button>
-        <button type="button" onClick={() => onZoom('out')} aria-label="Alejar">－</button>
-        <button type="button" onClick={() => onZoom('reset')} aria-label="Restablecer vista">⟲</button>
-        <button type="button" onClick={onLamp} aria-pressed={lamp} className={lamp ? 'is-on' : ''}>
-          ☀ Luz rasante
-        </button>
+        <Key k="+" onClick={() => onZoom('in')} aria-label="Acercar" />
+        <Key k="−" onClick={() => onZoom('out')} aria-label="Alejar" />
+        <Key k="↺" onClick={() => onZoom('reset')} aria-label="Restablecer vista" />
+        <Key k="L" variant={lamp ? 'fill' : 'outline'} onClick={onLamp} aria-pressed={lamp}>
+          Luz rasante
+        </Key>
       </div>
 
       {feedback ? (
