@@ -65,6 +65,8 @@ export default function Vault({ intro, legal }) {
     useProgress();
   const { pref: qualityPref, quality, cycle: cycleQuality } = useQuality();
   const [entered, setEntered] = useState(false);
+  // El navegador no dio un contexto WebGL: la bóveda no se puede mostrar.
+  const [no3d, setNo3d] = useState(false);
   const [view, setView] = useState('overview');
   const [openBox, setOpenBox] = useState(null);
   const [tableCaseId, setTableCaseId] = useState(null);
@@ -289,7 +291,8 @@ export default function Vault({ intro, legal }) {
   const toggleReduce = () => setSettings((s) => ({ ...s, reduceEffects: !s.reduceEffects }));
 
   // Teclas de la pantalla de inicio.
-  useHotkeys({ Enter: enter, s: toggleSound, r: toggleReduce, c: () => router.push('/creditos') }, !entered);
+  useHotkeys({ Enter: enter, s: toggleSound, r: toggleReduce, c: () => router.push('/creditos') }, !entered && !no3d);
+  useHotkeys({ Enter: () => router.push('/acceso'), r: () => window.location.reload() }, no3d);
 
   const openInfo = openBox ? describeBox(openBox, boxStatus[openBox]) : null;
   const tableCase = CASES.find((c) => c.id === tableCaseId);
@@ -363,6 +366,7 @@ export default function Vault({ intro, legal }) {
         onBoxClick={clickBox}
         onActivate={activate}
         onHover={setHovered}
+        onUnavailable={() => setNo3d(true)}
       />
       ) : null}
 
@@ -568,7 +572,25 @@ export default function Vault({ intro, legal }) {
         </div>
       ) : null}
 
-      {!entered ? (
+      {no3d ? (
+        <div className="vault__intro vault__intro--start">
+          <div className="panel vault__intro-card" role="alert">
+            <ScreenHead eyebrow="Sin imagen · CAM-B3-01" tone="red" title="La bóveda no se pudo mostrar" />
+            <p className="intro__sub">
+              El navegador bloqueó el 3D (WebGL) en este sitio. Suele pasar cuando la placa de video se reinicia: cerrá el navegador del
+              todo y volvé a abrirlo. Mientras tanto podés seguir desde el sistema de expedientes.
+            </p>
+            <div className="keys intro__keys">
+              <Key k="ENTER" variant="fill" href="/acceso" autoFocus>
+                Ir al sistema
+              </Key>
+              <Key k="R" onClick={() => window.location.reload()}>
+                Reintentar
+              </Key>
+            </div>
+          </div>
+        </div>
+      ) : !entered ? (
         // Inicio: se arranca adentro de la bóveda. La interfaz de CustodiaOS solo se abre desde la terminal.
         <div className="vault__intro vault__intro--start">
           <div className="panel vault__intro-card">

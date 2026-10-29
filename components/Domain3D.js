@@ -6,6 +6,7 @@ import { PLATFORM_Y, createAltar, createBloodPool, createDomainSky, createShrine
 import { LAYOUT, loadDomainModels } from '@/three/domainModels';
 import { CursedParticles } from '@/three/particles';
 import { glowTexture } from '@/three/proctex';
+import { createRenderer } from '@/three/renderer';
 
 // Recorrido de la cámara: quieta en la oscuridad y, con la luz, se acerca despacio.
 // Con los modelos de Sketchfab el santuario es mucho más grande que el procedural, y al
@@ -62,7 +63,9 @@ export default function Domain3D({ phase, reduceEffects }) {
     state.phaseAt = performance.now();
     if (state.phase === 'lit') state.litAt = state.phaseAt;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // Sin WebGL la expansión sigue igual con el texto y el sonido, sobre negro.
+    const renderer = createRenderer({ antialias: true });
+    if (!renderer) return undefined;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;

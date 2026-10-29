@@ -82,8 +82,14 @@ function box(ctx, x, y, w, h, { fill, stroke, glow, r = 6, line = 1.5 } = {}) {
   if (stroke) {
     ctx.save();
     if (glow) {
-      ctx.shadowColor = glow;
-      ctx.shadowBlur = 10;
+      // Halo barato: un trazo ancho y translúcido debajo (shadowBlur cuesta caro en la GPU
+      // y esta pantalla se redibuja dos veces por segundo).
+      ctx.strokeStyle = glow;
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = line + 4;
+      path(ctx, x + line / 2, y + line / 2, w - line, h - line, Array.isArray(r) ? r : Math.max(0, r - line / 2));
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
     ctx.strokeStyle = stroke;
     ctx.lineWidth = line;
@@ -102,8 +108,17 @@ function text(ctx, str, x, y, { size = 13, weight = 400, color = C.papel, kind =
   ctx.textBaseline = 'middle';
   if (spacing && 'letterSpacing' in ctx) ctx.letterSpacing = `${spacing}px`;
   if (glow) {
-    ctx.shadowColor = glow;
-    ctx.shadowBlur = 10;
+    // Halo en capas: tres trazos translúcidos cada vez más finos imitan el desenfoque.
+    ctx.save();
+    ctx.strokeStyle = glow;
+    ctx.globalAlpha = 0.09;
+    ctx.lineJoin = 'round';
+    const reach = Math.min(12, Math.max(3, size * 0.12));
+    [1, 0.6, 0.3].forEach((k) => {
+      ctx.lineWidth = reach * k;
+      ctx.strokeText(str, x, y);
+    });
+    ctx.restore();
   }
   ctx.fillText(str, x, y);
   const width = ctx.measureText(str).width;
@@ -252,8 +267,10 @@ function drawLogin(ctx, s, hotspots) {
   const prompt = text(ctx, '> operador:', 242, 353, { size: 15 });
   if (s.cursor) {
     ctx.save();
-    ctx.shadowColor = GLOW_R;
-    ctx.shadowBlur = 10;
+    ctx.fillStyle = GLOW_R;
+    ctx.globalAlpha = 0.35;
+    ctx.fillRect(242 + prompt + 18, 338, 15, 28);
+    ctx.globalAlpha = 1;
     ctx.fillStyle = C.rojo;
     ctx.fillRect(242 + prompt + 20, 340, 11, 24);
     ctx.restore();

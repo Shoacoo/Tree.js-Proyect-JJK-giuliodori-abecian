@@ -8,6 +8,7 @@ import { applyFingerModel, fitBandToProfile } from '@/three/fingerModel';
 import { createLooseOfuda, createSealBand } from '@/three/ofuda';
 import { CursedParticles } from '@/three/particles';
 import { QUALITY_PRESETS, createFrameMonitor, isSoftwareRenderer } from '@/three/quality';
+import { createRenderer } from '@/three/renderer';
 import { createScenery } from '@/three/scenery';
 
 const HOLD_MS = 900; // mantener presionado para despegar con cuidado
@@ -71,7 +72,9 @@ export default function Reliquary3D({
     // Renderer, escena y cámara.
     // La calidad se elige al montar; si cambia, CaseFile vuelve a montar la escena.
     const preset = QUALITY_PRESETS[quality] ?? QUALITY_PRESETS.alta;
-    const renderer = new THREE.WebGLRenderer({ antialias: preset.antialias, powerPreference: 'high-performance' });
+    // Sin WebGL el expediente sigue con los botones de cada sello.
+    const renderer = createRenderer({ antialias: preset.antialias, onLost: () => liveState.onSlow?.() });
+    if (!renderer) return undefined;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, preset.pixelRatio));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
