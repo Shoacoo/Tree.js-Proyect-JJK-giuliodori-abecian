@@ -44,10 +44,11 @@ export const CASES = [
         inscription: '急急如律令',
         flashback: {
           title: 'Residuo 01-C',
+          fragment: { art: 'footprints', sfx: 'ピチャ', caption: 'Las huellas se alejan del altar, hacia el río. Son de sandalias de ceremonia.', speech: 'La Unidad 4 vino de botas.' },
           panels: [
-            { sfx: 'ザァ', caption: 'Okutama, 2011. Llueve sobre un santuario que ya no tiene techo.' },
+            { art: 'ruinedShrine', sfx: 'ザァ', caption: 'Okutama, 2011. Llueve sobre un santuario que ya no tiene techo.' },
             {
-              sfx: 'ゴゴ',
+              art: 'openBox', sfx: 'ゴゴ',
               caption: 'Alguien cavó bajo el altar antes que la Unidad 4.',
               speech: 'La caja estaba abierta. Y vacía de algo más.',
             },
@@ -68,10 +69,11 @@ export const CASES = [
         inscription: '封',
         flashback: {
           title: 'Residuo 01-B',
+          fragment: { art: 'redacted', sfx: 'ザッ', caption: 'En la copia del informe, alguien tachó una línea entera. La tinta todavía mancha.', speech: 'Testigo: sin datos.' },
           panels: [
-            { sfx: 'ポタ', caption: 'Una mujer reza en voz baja y no termina la oración.' },
+            { art: 'prayer', sfx: 'ポタ', caption: 'Una mujer reza en voz baja y no termina la oración.' },
             {
-              sfx: '…',
+              art: 'patch', sfx: '…',
               caption: 'Lleva un haori con un emblema cosido encima de otro.',
               speech: 'No lo registren. El clan se encarga.',
             },
@@ -92,10 +94,11 @@ export const CASES = [
         inscription: '急急如律令',
         flashback: {
           title: 'Residuo 01-A',
+          fragment: { art: 'nailTwitch', sfx: 'ピク', caption: 'Nadie lo anota, pero por un instante la uña se mueve.' },
           panels: [
-            { sfx: 'ドン', caption: 'Un altar partido en dos. Huele a hierro.' },
+            { art: 'splitAltar', sfx: 'ドン', caption: 'Un altar partido en dos. Huele a hierro.' },
             {
-              sfx: '…',
+              art: 'sealing', sfx: '…',
               caption: 'La Unidad 4 sella el dedo con prisa, desde la base hacia la uña.',
               speech: '¿Seguro que era uno solo?',
             },
@@ -140,10 +143,11 @@ export const CASES = [
         inscription: '封',
         flashback: {
           title: 'Residuo 02-B',
+          fragment: { art: 'plate', sfx: 'ギギ', caption: 'La placa del vagón no tiene número de serie. Alguien lo limó a mano.' },
           panels: [
-            { sfx: 'ガタン', caption: 'Un vagón que no se mueve hace veinte años vibra igual.' },
+            { art: 'wagon', sfx: 'ガタン', caption: 'Un vagón que no se mueve hace veinte años vibra igual.' },
             {
-              sfx: 'ズズ',
+              art: 'crawlers', sfx: 'ズズ',
               caption: 'Las maldiciones no buscan a la gente del túnel. Buscan el dedo.',
               speech: 'Huelen a Sukuna como un perro huele carne.',
             },
@@ -164,10 +168,11 @@ export const CASES = [
         inscription: '急急如律令',
         flashback: {
           title: 'Residuo 02-A',
+          fragment: { art: 'burningPage', sfx: 'ボッ', caption: 'La hoja arrancada terminó quemada en el andén, antes de que amaneciera.', speech: 'Vos no viste nada.' },
           panels: [
-            { sfx: 'シン', caption: 'Una Ventana anota todo en una libreta mojada.' },
+            { art: 'wetNotebook', sfx: 'シン', caption: 'Una Ventana anota todo en una libreta mojada.' },
             {
-              sfx: '…',
+              art: 'crossedNumber', sfx: '…',
               caption: 'En la libreta hay un número de caja tachado: B3-11.',
               speech: 'Esto no va al registro central.',
             },
@@ -212,10 +217,11 @@ export const CASES = [
         inscription: '封',
         flashback: {
           title: 'Residuo 03-D',
+          fragment: { art: 'badge', sfx: 'カチャ', caption: 'Sobre la mesa, una credencial con la foto raspada. La silla todavía está tibia.' },
           panels: [
-            { sfx: 'ギィ', caption: 'Un contenedor cerrado desde adentro. Adentro no hay nadie.' },
+            { art: 'container', sfx: 'ギィ', caption: 'Un contenedor cerrado desde adentro. Adentro no hay nadie.' },
             {
-              sfx: '…',
+              art: 'chairTable', sfx: '…',
               caption: 'Hay una silla, una mesa y un expediente con un nombre que conocés.',
               speech: 'Ventana N.º 0391.',
             },
@@ -237,10 +243,11 @@ export const CASES = [
         inscription: '急急如律令',
         flashback: {
           title: 'Residuo 03-B',
+          fragment: { art: 'envelope', sfx: 'スッ', caption: 'Deja un sobre lacrado sobre el contenedor. Nadie de la Unidad 2 se anima a abrirlo.' },
           panels: [
-            { sfx: 'カツ', caption: 'Zapatos caros sobre el piso de metal.' },
+            { art: 'shoes', sfx: 'カツ', caption: 'Zapatos caros sobre el piso de metal.' },
             {
-              sfx: '…',
+              art: 'sleeveSeal', sfx: '…',
               caption: 'Un hombre de la junta de superiores sella el dedo sin mirarlo.',
               speech: 'Que figure como hallazgo de la Unidad 2.',
             },
@@ -262,10 +269,11 @@ export const CASES = [
         inscription: '封',
         flashback: {
           title: 'Residuo 03-A',
+          fragment: { art: 'teacup', sfx: 'ユラ', caption: 'Sobre la mesa de inspección hay una taza de té. Todavía sale vapor.', speech: '¿De quién es?' },
           panels: [
-            { sfx: 'ジジ', caption: 'El fluorescente del depósito B3. Esta misma sala.' },
+            { art: 'tube', sfx: 'ジジ', caption: 'El fluorescente del depósito B3. Esta misma sala.' },
             {
-              sfx: '…',
+              art: 'crt', sfx: '…',
               caption: 'Alguien volvió a sellar este dedo hace poco. Desde tu terminal.',
               speech: 'La próxima Ventana no va a preguntar.',
             },
@@ -287,10 +295,11 @@ export const CASES = [
         inscription: '急急如律令',
         flashback: {
           title: 'Residuo 03-C',
+          fragment: { art: 'fourEyes', sfx: 'ギロ', caption: 'Cuatro ojos se abren en la oscuridad del contenedor.', speech: 'Ya casi.' },
           panels: [
-            { sfx: 'ゴウ', caption: 'El agua del puerto golpea el contenedor toda la noche.' },
+            { art: 'waves', sfx: 'ゴウ', caption: 'El agua del puerto golpea el contenedor toda la noche.' },
             {
-              sfx: '…',
+              art: 'grin', sfx: '…',
               caption: 'Una voz que no es humana se ríe desde la uña.',
               speech: 'Te dieron permiso para abrirme. ¿Lo guardaste?',
             },

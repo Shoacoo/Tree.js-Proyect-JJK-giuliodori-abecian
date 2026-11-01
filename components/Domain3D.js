@@ -13,10 +13,10 @@ import { createRenderer } from '@/three/renderer';
 // reír la cámara se le va encima a la cara (close).
 const MODEL_CAMERA = {
   from: new THREE.Vector3(0, 6.5, 24),
-  to: new THREE.Vector3(0, 3.7, 3.9),
-  look: new THREE.Vector3(0, 3.45, LAYOUT.mouthZ),
-  close: new THREE.Vector3(0, 4.32, -0.55),
-  closeLook: new THREE.Vector3(0, 4.28, LAYOUT.mouthZ),
+  to: new THREE.Vector3(0, 3.3, 3.9),
+  look: new THREE.Vector3(0, 3.0, LAYOUT.mouthZ),
+  close: new THREE.Vector3(0, 3.5, -0.55),
+  closeLook: new THREE.Vector3(0, 3.46, LAYOUT.mouthZ),
 };
 const PROCEDURAL_CAMERA = {
   from: new THREE.Vector3(0, 1.75, 9.8),
@@ -113,7 +113,7 @@ export default function Domain3D({ phase, reduceEffects }) {
       altar.group.scale.setScalar(LAYOUT.altar.scale);
       // Cenital estrecha desde arriba y adelante: entra por las fauces hasta Sukuna.
       spot.position.set(0, 7.2, 6.5);
-      spot.target.position.set(0, LAYOUT.mouthFloor + 1.1, LAYOUT.mouthZ);
+      spot.target.position.set(0, LAYOUT.mouthFloor + 0.7, LAYOUT.mouthZ);
       spot.angle = 0.2;
       spot.distance = 22;
       rim.position.set(0, LAYOUT.throat.y + 0.2, LAYOUT.throat.z + 0.8);

@@ -16,6 +16,8 @@ import { firebaseEnabled, getFirebase } from '@/lib/firebase';
 
 const STORAGE_KEY = 'contencion:progress:v1';
 const LOCAL_OPERATOR_KEY = 'contencion:local-operator';
+const TOUR_VISIT_KEY = 'contencion:tour-visit';
+let newVisit = null; // si esta carga de la página es una visita nueva (ver el efecto de hidratación)
 
 // tour: paso del recorrido guiado (data/tour.js). No se reinicia con una partida nueva.
 export function createInitialProgress(endingsUnlocked = [], tour = 0) {
@@ -91,7 +93,19 @@ export function ProgressProvider({ children }) {
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const local = readLocal();
-    if (local) setProgress(local);
+    // El recorrido guiado vuelve a empezar en cada visita (pestaña nueva). Dentro de la misma
+    // visita, recargar o cambiar de pantalla no lo reinicia.
+    // Se decide una sola vez por carga (en desarrollo, React corre este efecto dos veces).
+    if (newVisit === null) {
+      newVisit = true;
+      try {
+        newVisit = !window.sessionStorage.getItem(TOUR_VISIT_KEY);
+        window.sessionStorage.setItem(TOUR_VISIT_KEY, '1');
+      } catch {
+        // Sin almacenamiento: cada carga cuenta como una visita nueva.
+      }
+    }
+    if (local || newVisit) setProgress((prev) => ({ ...(local ?? prev), tour: newVisit ? 0 : (local?.tour ?? prev.tour) }));
     try {
       setLocalName(window.localStorage.getItem(LOCAL_OPERATOR_KEY));
       const savedSettings = window.localStorage.getItem('contencion:settings');
@@ -143,7 +157,8 @@ export function ProgressProvider({ children }) {
           delete remote.updatedAt;
           delete remote.userId;
           delete remote.authProvider;
-          setProgress({ ...createInitialProgress(), ...remote });
+          // El paso del recorrido es el de esta visita, no el guardado en la nube.
+          setProgress((prev) => ({ ...createInitialProgress(), ...remote, tour: prev.tour }));
         }
         setSyncError(false);
       } catch (error) {

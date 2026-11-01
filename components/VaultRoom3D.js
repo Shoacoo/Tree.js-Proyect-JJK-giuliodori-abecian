@@ -23,6 +23,7 @@ import {
   drawTerminalScreen,
   placeLooseOfuda,
 } from '@/three/vault';
+import { createObjectivesBoard } from '@/three/vaultBoard';
 import { fingerShapeKey, lowestPoint, sampleFingerPoints } from '@/three/finger';
 
 // Puntos de vista de la sala: posición de la cámara, punto al que mira y cuánto se puede girar.
@@ -35,6 +36,8 @@ export const VIEWS = {
   inspect: { position: [0, 1.17, 0.27], target: [0, 0.93, -0.01], yaw: 0, pitch: 0 },
   // De frente a la pantalla del CRT y a unos 42 cm: el texto del menú se lee bien. Corrida
   // un poco a la derecha para que la tarjeta de la esquina no tape la pantalla.
+  // De frente al tablón de la pared izquierda, corrida para que la tarjeta de la esquina no lo tape.
+  board: { position: [-3.95, 1.42, -1.65], target: [-5.97, 1.32, -1.65], yaw: 0.2, pitch: 0.14 },
   terminal: { position: [2.061, 1.065, 0.48], target: [2.468, 1.05, 0.377], yaw: 0.22, pitch: 0.14 },
 };
 
@@ -93,6 +96,7 @@ export default function VaultRoom3D({
   quality = 'alta',
   onSlow,
   screenData,
+  boardData,
   onNavigate,
   onBoxClick,
   onActivate,
@@ -104,7 +108,7 @@ export default function VaultRoom3D({
   const live = useRef({});
 
   useEffect(() => {
-    Object.assign(live.current, { view, boxStatus, openBox, sealStates, lamp, influence, corruption, corruptionFrom, signedIn, operator, reduceEffects, screenData, onNavigate, onBoxClick, onActivate, onHover, onSlow, onPeel, onHint, onUnavailable });
+    Object.assign(live.current, { view, boxStatus, openBox, sealStates, lamp, influence, corruption, corruptionFrom, signedIn, operator, reduceEffects, screenData, boardData, onNavigate, onBoxClick, onActivate, onHover, onSlow, onPeel, onHint, onUnavailable });
     live.current.sync?.();
   });
 
@@ -188,6 +192,8 @@ export default function VaultRoom3D({
     const terminal = createTerminal();
     scene.add(terminal.group);
     if (!preset.extraLights) terminal.glow.removeFromParent();
+    const board = createObjectivesBoard();
+    scene.add(board.group);
 
     // Menos llamadas de dibujo: se unen las piezas fijas que comparten material y se apagan
     // las sombras de las piezas chicas.
@@ -347,6 +353,12 @@ export default function VaultRoom3D({
       }
       // En vertical la pantalla de la terminal no entraría de ancho: la cámara se aleja, y mira
       // un poco más arriba para que la pantalla quede por debajo del panel de arriba.
+      // Lo mismo con el tablón, que además vuelve al centro: la tarjeta queda arriba.
+      if (name === 'board' && camera.aspect < 1) {
+        goalPos.z += 0.35;
+        goalTarget.z += 0.35;
+        goalPos.sub(goalTarget).multiplyScalar(2).add(goalTarget);
+      }
       if (name === 'terminal' && camera.aspect < 1) {
         goalPos.sub(goalTarget).multiplyScalar(1.75).add(goalTarget);
         goalTarget.y += 0.06;
@@ -406,6 +418,7 @@ export default function VaultRoom3D({
       });
       markShadows();
       syncTable();
+      board.redraw(liveState.boardData);
       applyView(liveState.view);
     };
     liveState.sync = sync;
@@ -420,7 +433,7 @@ export default function VaultRoom3D({
     targets.push(...shelves.right.group.children.filter((c) => c.userData.type === 'shelf'));
     table.group.traverse((c) => (c.userData.type === 'table' || c.userData.type === 'notebook') && targets.push(c));
     terminal.group.traverse((c) => c.userData.type === 'terminal' && targets.push(c));
-    targets.push(exitDoor);
+    targets.push(exitDoor, board.surface);
 
     const pick = (event) => {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -576,6 +589,8 @@ export default function VaultRoom3D({
       } else if (hit.type === 'terminal' && currentView !== 'terminal') {
         // De cerca se usa el menú de la pantalla.
         liveState.onNavigate?.('terminal');
+      } else if (hit.type === 'board') {
+        if (currentView !== 'board') liveState.onNavigate?.('board');
       } else if (hit.type === 'exit') {
         liveState.onActivate?.('exit');
       }

@@ -9,6 +9,7 @@ import MangaFlashback from '@/components/MangaFlashback';
 import TourCard from '@/components/TourCard';
 import { Key, PersistenceBadge, ScreenHead, useHotkeys } from '@/components/Shell';
 import { CASES, HIDDEN_BOX, MEMORY_TOTAL, VAULT_BOXES, getCase, getCaseByBox, nextCaseId } from '@/data/cases';
+import { getObjectives } from '@/data/objectives';
 import { isCaseUnlocked, useProgress } from '@/hooks/useProgress';
 import { qualityLabel, useQuality } from '@/hooks/useQuality';
 import { useTour } from '@/hooks/useTour';
@@ -26,6 +27,7 @@ const VIEW_LABEL = {
   right: 'Estantería derecha · B3-01 a B3-06',
   table: 'Mesa de inspección',
   inspect: 'Mesa de inspección · de cerca',
+  board: 'Tablón de objetivos',
   terminal: 'Terminal B3-T02',
 };
 
@@ -331,7 +333,9 @@ export default function Vault({ intro, legal }) {
             ? NOTEBOOK_LABEL[hovered.side]
             : hovered.type === 'exit'
               ? 'Salida · cerrar sesión'
-              : 'Terminal B3-T02'
+              : hovered.type === 'board'
+                ? view === 'board' ? null : 'Tablón de objetivos'
+                : 'Terminal B3-T02'
     : null;
   const zoom = (dir) => {
     if (dir === 'in') inspectApi.current?.zoomIn();
@@ -358,6 +362,7 @@ export default function Vault({ intro, legal }) {
     memoryTotal: MEMORY_TOTAL,
     persistence,
   };
+  const boardData = getObjectives(progress, signedIn);
   const shelfCodes = view === 'left' ? VAULT_BOXES.left : view === 'right' ? VAULT_BOXES.right : [];
 
   return (
@@ -384,6 +389,7 @@ export default function Vault({ intro, legal }) {
         operator={operator}
         reduceEffects={settings.reduceEffects}
         screenData={screenData}
+        boardData={boardData}
         onNavigate={navigate}
         onBoxClick={clickBox}
         onActivate={activate}
@@ -492,6 +498,24 @@ export default function Vault({ intro, legal }) {
               </button>
             </div>
           </div>
+        ) : view === 'board' ? (
+          <div className="vault__card">
+            <div className="label">TABLÓN DE OBJETIVOS</div>
+            <p>{boardData.current ? `Ahora: ${boardData.current.text}.` : 'No quedan objetivos pendientes.'}</p>
+            {boardData.current?.detail ? <p className="vault__hint">{boardData.current.detail}</p> : null}
+            <p className="vault__hint">
+              Detalles encontrados: {boardData.found} de {boardData.total} · Residuo: {boardData.leak}
+            </p>
+            {/* Lo que está escrito en el tablón 3D, para lectores de pantalla. */}
+            <ul className="sr-only">
+              {boardData.objectives.map((o) => (
+                <li key={o.id}>
+                  {o.done ? 'Hecho' : o.locked ? 'Bloqueado' : 'Pendiente'}: {o.text}. {o.detail}
+                </li>
+              ))}
+              {boardData.cases.flatMap((c) => c.details.filter((d) => d.found).map((d) => <li key={d.id}>Detalle de {c.code}: {d.word}</li>))}
+            </ul>
+          </div>
         ) : view === 'terminal' ? (
           <div className="vault__card">
             <div className="label">TERMINAL B3-T02</div>
@@ -537,6 +561,7 @@ export default function Vault({ intro, legal }) {
           ['left', 'Estantería izq.'],
           ['right', 'Estantería der.'],
           ['table', 'Mesa'],
+          ['board', 'Tablón'],
           ['terminal', 'Terminal'],
         ].map(([id, label]) => (
           <button

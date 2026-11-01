@@ -83,7 +83,7 @@ Resumen para ponerse al día. Cada punto está explicado en detalle en su secci�
 | **Interfaz nueva, versión V3.2 del Figma ("CustodiaOS"):** sistema burocrático de oficina en grises, con rojo y amarillo como acento, DM Mono y Space Grotesk, menú lateral, barra de estado y atajos de teclado. Sin kanji en la interfaz. | [La interfaz CustodiaOS](#la-interfaz-custodiaos-v32) | `components/Shell.js`, `components/IndexScreens.js`, `app/globals.css`, `lib/readings.js` |
 | **El sistema tiene 7 pestañas:** sesión, lote, registro, barrera, protocolo, formularios y ayuda. La pantalla de la computadora de la bóveda se redibujó igual que en el Figma. | [Computadora](#computadora-threevaultterminaljs) | `components/CaseIndex.js`, `three/vaultTerminal.js` |
 | **Se arranca en la bóveda:** la portada es una tarjeta de bienvenida sobre la sala 3D. Al sistema se entra desde la computadora de la bóveda. | [5. Recorrido](#5-recorrido-del-usuario) | `components/Vault.js`, `app/page.js` |
-| **Recorrido guiado de la primera partida:** 19 carteles; lo que todavía no se explicó queda bloqueado. | [5. Recorrido](#5-recorrido-del-usuario) | `data/tour.js`, `hooks/useTour.js`, `components/TourCard.js` |
+| **Recorrido guiado de la primera partida:** 24 carteles; lo que todavía no se explicó queda bloqueado. | [5. Recorrido](#5-recorrido-del-usuario) | `data/tour.js`, `hooks/useTour.js`, `components/TourCard.js` |
 | **Sello como en el anime:** el dedo va envuelto entero en tiras de papel con símbolos. Cada sello es un tramo y se retira por separado. Los ofudas de cajas y paredes imitan papel real envejecido. | [7. Mecánica](#7-mecánica) | `three/ofuda.js`, `three/fingerModel.js` |
 | **Sin WebGL la página no se cae:** si el navegador bloquea el 3D, aparece un aviso con salida al sistema. Una pérdida de contexto baja la calidad automática. | [10. Three.js](#detalles-de-implementación-que-conviene-conocer) | `three/renderer.js`, `components/Vault.js` |
 
@@ -167,13 +167,13 @@ mesa ──► "Inspeccionar de cerca": sellos, residuos, planilla ──► arc
 
 ### Recorrido guiado
 
-La primera partida es un **recorrido guiado**: 19 carteles con una explicación breve de cada parte, en un orden fijo.
+La primera partida es un **recorrido guiado**: 24 carteles con una explicación breve de cada parte, en un orden fijo.
 
 | Dónde | Pasos |
 | --- | --- |
-| Bóveda | bienvenida, mirar la sala, ir a la estantería derecha, abrir la caja B3-04, llevar el dedo a la mesa, ir a la terminal y entrar |
+| Bóveda | bienvenida, mirar la sala, ir al tablón y leerlo, la salida, ir a la estantería derecha, abrir la caja B3-04, llevar el dedo a la mesa, ir a la terminal y entrar |
 | Sistema | sesión, lote, registro, barrera, protocolo, formularios, ayuda y abrir EXP-01 |
-| Expediente | visor, retirar un sello, registrar su estado, lecturas y archivar |
+| Expediente | visor, los residuos (página de manga y panel roto), retirar un sello, registrar su estado, lecturas, archivar y la inspección en la bóveda |
 
 - Hasta completar cada paso, **lo que viene después queda bloqueado**: los botones y clicks en 3D de la bóveda (aparece un aviso), las pestañas del menú (marcadas "bloq."), la apertura de expedientes y el retiro de sellos.
 - Los pasos de explicación se cierran con **[ENTER] Entendido**. Los de acción avanzan solos cuando se hacen (abrir la caja, identificarse, retirar un sello…). El elemento del paso se resalta en amarillo (atributo `data-tour`).
@@ -272,6 +272,18 @@ Con la corrupción (0 a 1) la sala se vuelve más turbia, de forma gradual:
 - Al volver de otra pantalla, la sala arranca como estaba y se oscurece en unos segundos (el último nivel visto se guarda en `sessionStorage`), con un aviso según el nivel.
 - Con "Reducir efectos" la sala se oscurece igual, pero sin latidos, parpadeos ni movimiento de cámara.
 
+### Tablón de objetivos (`three/vaultBoard.js`)
+
+Tablón blanco en la pared izquierda, entre la salida y la estantería. Anota a marcador los objetivos (el actual, con una flecha roja; los hechos, tildados), los sellos retirados y verificados de cada dedo, los lotes archivados, el residuo y los detalles encontrados. Los datos salen de `getObjectives()` en `data/objectives.js`: la B3-11 no aparece hasta que se revela y las palabras ocultas quedan en blanco hasta que se encuentran. Se abre tocándolo o con el botón "Tablón"; la tarjeta de esa vista repite el contenido para lectores de pantalla.
+
+### Paneles de manga (`components/MangaArt.js`, `components/MangaFlashback.js`)
+
+Cada residuo es una página de manga: dos paneles apenas cortados en diagonal, con globos de diálogo y efectos de sonido. Cada panel elige su dibujo con `art` en `data/cases.js`, que es el nombre del archivo en `public/manga/`. Las 27 imágenes son originales del proyecto, generadas con la IA de Figma (archivo "Contención · Paneles manga") con un mismo pedido de estilo: tinta suelta, mucho blanco y negros de pincel. El dedo aparece envuelto en sellos o tapado: el filtro de Figma rechazaba las descripciones de un dedo real.
+
+El texto de los paneles usa Manga Temple (`app/fonts/`, Blambot, Nate Piekos). No trae acentos, eñe ni signos de apertura, así que `MangaText` los dibuja sobre la letra y le pasa el texto original al lector de pantalla. Su licencia solo permite el uso libre en cómics independientes y no permite redistribuirla sin permiso del autor (ver `app/fonts/manga-temple-font-info.txt`): hay que pedirle permiso o cambiarla antes de publicar el sitio.
+
+Abajo hay un **panel roto**: al sacar 6 pedazos (o con el botón "reconstruilo") se desarma y aparece una imagen con información que el resto del residuo no cuenta, definida en `flashback.fragment` (`art`, `sfx`, `caption`, `speech` opcional). Queda armado durante la visita. No suma a la memoria: los 9 detalles ocultos siguen siendo las palabras subrayadas.
+
 ### Salida de emergencia: cerrar sesión
 
 - La puerta verde de la pared izquierda (非常口) se ilumina al pasar el puntero y, al tocarla, pide confirmación ("Cerrar sesión" / "Quedarme"; Escape o click afuera cancelan).
@@ -312,7 +324,7 @@ Al tocar **"Aceptar el Voto"** en el EXP-00 se abre una escena a pantalla comple
 **Secuencia** (unos 13 segundos, `components/DomainExpansion.js`):
 
 1. **Oscuridad** con 領域展開. Dura lo necesario para que terminen de cargar los modelos: mínimo 3,8 s y como mucho 9 s.
-2. **Se enciende el altar:** las velas sobre los cráneos y una luz que entra por las fauces del santuario. Sukuna espera parado adentro, con la cabeza gacha. Se revela el santuario en rojo y aparece 伏魔御廚子.
+2. **Se enciende el altar:** las velas sobre los cráneos y una luz que entra por las fauces del santuario. Sukuna espera sentado adentro, con una rodilla arriba y la cabeza gacha. Se revela el santuario en rojo y aparece 伏魔御廚子.
 3. **Te mira:** levanta la cabeza y se le encienden los ojos.
 4. **La risa:** la cámara se le acerca de golpe a la cara; la cabeza se sacude con la risa.
 5. **Apagón:** negro total, solo quedan los ojos rojos un instante. Después pasa al final.
@@ -321,7 +333,7 @@ Al tocar **"Aceptar el Voto"** en el EXP-00 se abre una escena a pantalla comple
 
 - `DomainExpansion.js` maneja el tiempo y el sonido, y se monta con un **portal** fuera del marco de la terminal (si no, el grano y los temblores de la terminal afectan la escena). Bloquea el scroll de la página mientras dura.
 - `Domain3D.js` dibuja la escena con las fases `dark`, `lit`, `laugh` y `off`.
-- `three/domainModels.js` carga y prepara los modelos (ver [sección 13](#13-modelos-3d)): materiales, pose de los brazos, brillo de los ojos pegado al hueso de la cabeza y funciones para mover la cabeza y respirar.
+- `three/domainModels.js` carga y prepara los modelos (ver [sección 13](#13-modelos-3d)): materiales, pose sentada, brillo de los ojos pegado al hueso de la cabeza y funciones para mover la cabeza y respirar.
 - `three/domain.js` es el **respaldo procedural** (santuario, montaña de cráneos, Sukuna sentado, altar, charco y cielo). Se usa si los modelos no cargan. El altar, el charco y el cielo se usan siempre.
 - `components/FinalArchive.js` empieza a descargar los modelos apenas aparece la oferta del Voto, mientras se lee.
 - **Sonido** sintetizado con Web Audio (`createDomainAudio()` en `lib/sound.js`): drone grave, golpe al encender el altar, una risa grave hecha con formantes y eco, y corte total en el apagón. Suena aunque el sonido del juego esté apagado, porque arranca con el click de "Aceptar el Voto", como una cinemática.
@@ -416,7 +428,7 @@ Están en `public/models/`, cada uno con su archivo de licencia al lado.
 | `malevolent-shrine.glb` | Santuario de la expansión de dominio | 9,5 MB | CC BY 4.0 | Optimizado: texturas a 1024 px en JPEG (512 px las de metal/rugosidad), sin tangentes ni UVs que no se usan, índices de 16 bits. Original: 50 MB |
 | `sukuna.glb` | Sukuna de la expansión de dominio | 1,3 MB | CC BY 4.0 | Materiales "unlit" cambiados por materiales con luz (si no, se veía brillante en la oscuridad) |
 
-- En la escena, a Sukuna se le bajan los brazos (venía con los brazos abiertos) y se le anima la cabeza con su esqueleto (`bone_Head_071`). Mide unos 2,25 m y está parado dentro de las fauces del santuario (medidas en `LAYOUT` de `three/domainModels.js`).
+- En la escena, a Sukuna se lo sienta apuntando cada hueso a una dirección (`POSE` en `three/domainModels.js`; venía con los brazos abiertos) y se le anima la cabeza con su esqueleto (`bone_Head_071`). Mide unos 2,25 m y está sentado dentro de las fauces del santuario (medidas en `LAYOUT` de `three/domainModels.js`).
 - **Para regenerar los modelos de la expansión de dominio:** descomprimir los zips de Sketchfab en una carpeta con dos subcarpetas, `shrine/` y `sukuna/`, y correr `node scripts/build-domain-models.cjs . <esa carpeta>`. Usa `sharp`, que ya viene instalado con Next. Escribe los `.glb` y copia las licencias en `public/models/`.
 
 ## 14. Estructura del código
@@ -443,7 +455,8 @@ components/
   IndexScreens.js         las 7 pestañas del sistema de expedientes
   TourCard.js             cartel del recorrido guiado
   CaseFile.js             pantalla del expediente: visor, sellos, planilla, lecturas, archivo
-  MangaFlashback.js       paneles de manga con detalles ocultos
+  MangaFlashback.js       página de manga con detalles ocultos y panel roto
+  MangaArt.js             imagen a tinta de cada panel
   FinalArchive.js         EXP-00: la orden se tacha, oferta del pacto, precarga de modelos
   DomainExpansion.js      secuencia, sonido y controles de la expansión de dominio
   Domain3D.js             escena de la expansión de dominio
@@ -576,6 +589,7 @@ Antes de programar se hizo un análisis del prototipo 2D (errores y propuestas),
 - Santuario de la expansión de dominio: ["Malevolent_shrine jjk cc"](https://sketchfab.com/3d-models/malevolent-shrine-jjk-cc-df9a59de87944a65b8d77847d1008c4d) de Tyo155q ([@Tyo155q](https://sketchfab.com/Tyo155q)), licencia [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Adaptado: texturas reducidas y atributos sin uso eliminados (ver `public/models/malevolent-shrine-LICENSE.txt`).
 - Sukuna de la expansión de dominio: ["Sukuna Free Fire Skin"](https://sketchfab.com/3d-models/sukuna-free-fire-skin-81a53ae2b8604c40843bda9490cef39e) de rocklee.ff ([@rocklee.ff123](https://sketchfab.com/rocklee.ff123)), licencia [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Adaptado: materiales con luz, otra pose de brazos y cabeza animada (ver `public/models/sukuna-LICENSE.txt`). Es una skin del juego Free Fire: el diseño original probablemente sea de Garena.
 - Tipografías: DM Mono, Space Grotesk, Zen Kaku Gothic New y Yuji Syuku (Google Fonts, SIL OFL).
+- Risa de Sukuna en la expansión de dominio: grabación aportada por el equipo (`public/audio/sukuna-laugh.mp3`), sin fuente registrada. El tramo que suena se define en `LAUGH_CLIP` (`lib/sound.js`).
 - Three.js (MIT), Next.js (MIT), Firebase JS SDK (Apache 2.0).
 - Sonido generado con Web Audio API. Texturas generadas en canvas.
 - Referencias: sitio de *Requiem for a Dream* (Hi-ReS!, 2000) y *A Journal of Insomnia* (NFB, 2013).

@@ -1,4 +1,5 @@
 import { DM_Mono, Space_Grotesk, Yuji_Syuku, Zen_Kaku_Gothic_New } from 'next/font/google';
+import localFont from 'next/font/local';
 import { ProgressProvider } from '@/hooks/useProgress';
 import './globals.css';
 
@@ -8,6 +9,15 @@ const dmMono = DM_Mono({ weight: ['300', '400', '500'], subsets: ['latin'], vari
 const grotesk = Space_Grotesk({ weight: ['500', '700'], subsets: ['latin'], variable: '--font-grotesk', display: 'swap' });
 const zen = Zen_Kaku_Gothic_New({ weight: ['400', '700'], subsets: ['latin'], variable: '--font-zen', display: 'swap' });
 const yuji = Yuji_Syuku({ weight: '400', subsets: ['latin'], variable: '--font-yuji', display: 'swap' });
+// Manga Temple (Blambot, Nate Piekos): el texto de los paneles de los residuos.
+const mangaTemple = localFont({
+  src: [
+    { path: './fonts/mangat.ttf', weight: '400' },
+    { path: './fonts/mangatb.ttf', weight: '700' },
+  ],
+  variable: '--font-manga-temple',
+  display: 'swap',
+});
 
 export const metadata = {
   title: {
@@ -32,7 +42,7 @@ export const viewport = {
 // Server Component: estructura y metadata. El estado de la partida vive en un Client Component (ProgressProvider).
 export default function RootLayout({ children }) {
   return (
-    <html lang="es" className={`${dmMono.variable} ${grotesk.variable} ${zen.variable} ${yuji.variable}`}>
+    <html lang="es" className={`${dmMono.variable} ${grotesk.variable} ${zen.variable} ${yuji.variable} ${mangaTemple.variable}`}>
       <body>
         <ProgressProvider>{children}</ProgressProvider>
       </body>

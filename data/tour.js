@@ -34,6 +34,28 @@ export const TOUR = [
     target: 'vault-nav',
   },
   {
+    id: 'tablon',
+    where: 'vault',
+    title: 'El tablón',
+    text: 'En la pared izquierda, antes de la estantería, hay un tablón blanco. Hacé click en él o andá con el botón Tablón.',
+    target: 'nav-board',
+    done: (s) => s.view === 'board',
+  },
+  {
+    id: 'tablon-leer',
+    where: 'vault',
+    title: 'Qué anota el tablón',
+    text: 'A la izquierda, los objetivos: la flecha roja marca el que sigue. Abajo, cuántos dedos archivaste y las fugas. A la derecha, los detalles de los residuos: quedan en blanco hasta que los encontrás. Se actualiza solo y podés volver cuando quieras.',
+    ack: true,
+  },
+  {
+    id: 'salida',
+    where: 'vault',
+    title: 'La salida',
+    text: 'Al lado del tablón está la puerta verde de emergencia. Cuando tengas la sesión abierta, sirve para cerrarla: antes de salir te pide confirmación.',
+    ack: true,
+  },
+  {
     id: 'estanteria',
     where: 'vault',
     title: 'Las estanterías',
@@ -150,6 +172,13 @@ export const TOUR = [
     target: 'viewport',
   },
   {
+    id: 'residuo',
+    where: 'case',
+    title: 'Los residuos',
+    text: 'Cada sello que retires abre su residuo: una página de manga con el pasado del dedo. Tocá las palabras subrayadas para registrar un detalle. Abajo hay un panel roto: si sacás los pedazos, muestra algo más. Lo podés releer después con Releer residuo.',
+    ack: true,
+  },
+  {
     id: 'retirar',
     where: 'case',
     title: 'Retirar un sello',
@@ -178,10 +207,17 @@ export const TOUR = [
     id: 'archivar',
     where: 'case',
     title: 'Archivar',
-    text: 'Retirá los otros sellos de la misma forma y archivá el expediente. Desde acá seguís solo.',
+    text: 'Retirá los otros sellos de la misma forma y archivá el expediente.',
     ack: true,
     target: 'archive',
     side: 'left',
+  },
+  {
+    id: 'boveda',
+    where: 'case',
+    title: 'También en la bóveda',
+    text: 'Podés hacer todo esto en la mesa de inspección de la bóveda, con las libretas abiertas al costado. Fijate en la sala: a medida que avanzás con los dedos, se va poniendo más turbia. Desde acá seguís solo.',
+    ack: true,
   },
 ];
 

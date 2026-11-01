@@ -50,6 +50,8 @@ export function useTour(snapshot = {}) {
     // Acciones de la bóveda. Si el recorrido sigue en el sistema, desde la bóveda solo se puede ir a la terminal.
     allows: (action) => {
       if (!active) return true;
+      // El tablón solo informa: se puede mirar en cualquier momento.
+      if (action === 'navigate:board') return true;
       const allowed =
         step.where === 'vault'
           ? (step.allow ?? [])
