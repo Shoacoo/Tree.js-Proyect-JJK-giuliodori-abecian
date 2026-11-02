@@ -827,8 +827,11 @@ export default function VaultRoom3D({
         const lowest = lowestPoint(relicPoints, tableRelic.matrix);
         if (lowest !== Infinity) tableRelic.position.y = TRAY_FLOOR - lowest;
         const spinning = Math.abs(spin.goalX - spin.x) + Math.abs(spin.goalY - spin.y) > 0.001;
-        if (!reduce || spinning || hold || peeling.size) {
-          // El movimiento es lento: la sombra de la lámpara se actualiza 8 veces por segundo.
+        // Mientras se lo gira, la sombra va en cada cuadro: una atrasada cae sobre el propio dedo.
+        if (spinning) {
+          table.lamp.shadow.needsUpdate = true;
+        } else if (!reduce || hold || peeling.size) {
+          // El vaivén es lento: alcanza con actualizarla 8 veces por segundo.
           lampShadowTimer += rawDt;
           if (lampShadowTimer > 0.125) {
             lampShadowTimer = 0;

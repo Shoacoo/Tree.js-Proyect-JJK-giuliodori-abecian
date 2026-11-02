@@ -22,6 +22,9 @@ export function loadFingerModel() {
           if (!o.isMesh) return;
           o.material.transparent = false;
           o.material.depthWrite = true;
+          // Viene a dos caras: sin esto, su cara visible también proyecta sombra y se mancha
+          // de negro a sí misma según cómo se lo gire.
+          o.material.shadowSide = THREE.BackSide;
           o.material.needsUpdate = true;
           meshes.push(o);
         });
