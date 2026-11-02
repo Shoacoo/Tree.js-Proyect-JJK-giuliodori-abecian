@@ -83,7 +83,7 @@ Resumen para ponerse al día. Cada punto está explicado en detalle en su secci�
 | **Interfaz nueva, versión V3.2 del Figma ("CustodiaOS"):** sistema burocrático de oficina en grises, con rojo y amarillo como acento, DM Mono y Space Grotesk, menú lateral, barra de estado y atajos de teclado. Sin kanji en la interfaz. | [La interfaz CustodiaOS](#la-interfaz-custodiaos-v32) | `components/Shell.js`, `components/IndexScreens.js`, `app/globals.css`, `lib/readings.js` |
 | **El sistema tiene 7 pestañas:** sesión, lote, registro, barrera, protocolo, formularios y ayuda. La pantalla de la computadora de la bóveda se redibujó igual que en el Figma. | [Computadora](#computadora-threevaultterminaljs) | `components/CaseIndex.js`, `three/vaultTerminal.js` |
 | **Se arranca en la bóveda:** la portada es una tarjeta de bienvenida sobre la sala 3D. Al sistema se entra desde la computadora de la bóveda. | [5. Recorrido](#5-recorrido-del-usuario) | `components/Vault.js`, `app/page.js` |
-| **Recorrido guiado de la primera partida:** 24 carteles; lo que todavía no se explicó queda bloqueado. | [5. Recorrido](#5-recorrido-del-usuario) | `data/tour.js`, `hooks/useTour.js`, `components/TourCard.js` |
+| **Recorrido guiado de la primera partida:** 18 carteles; lo que todavía no se explicó queda bloqueado. | [5. Recorrido](#5-recorrido-del-usuario) | `data/tour.js`, `hooks/useTour.js`, `components/TourCard.js` |
 | **Sello como en el anime:** el dedo va envuelto entero en tiras de papel con símbolos. Cada sello es un tramo y se retira por separado. Los ofudas de cajas y paredes imitan papel real envejecido. | [7. Mecánica](#7-mecánica) | `three/ofuda.js`, `three/fingerModel.js` |
 | **Sin WebGL la página no se cae:** si el navegador bloquea el 3D, aparece un aviso con salida al sistema. Una pérdida de contexto baja la calidad automática. | [10. Three.js](#detalles-de-implementación-que-conviene-conocer) | `three/renderer.js`, `components/Vault.js` |
 
@@ -167,13 +167,13 @@ mesa ──► "Inspeccionar de cerca": sellos, residuos, planilla ──► arc
 
 ### Recorrido guiado
 
-La primera partida es un **recorrido guiado**: 24 carteles con una explicación breve de cada parte, en un orden fijo.
+La primera partida es un **recorrido guiado**: 18 carteles con una explicación breve de cada parte, en un orden fijo. Cada cosa se explica cuando aparece: el cartel del residuo sale sobre la primera página de manga.
 
 | Dónde | Pasos |
 | --- | --- |
 | Bóveda | bienvenida, mirar la sala, ir al tablón y leerlo, la salida, ir a la estantería derecha, abrir la caja B3-04, llevar el dedo a la mesa, ir a la terminal y entrar |
-| Sistema | sesión, lote, registro, barrera, protocolo, formularios, ayuda y abrir EXP-01 |
-| Expediente | visor, los residuos (página de manga y panel roto), retirar un sello, registrar su estado, lecturas, archivar y la inspección en la bóveda |
+| Sistema | un solo cartel con todas las pestañas y abrir EXP-01 |
+| Expediente | visor, retirar un sello, el residuo (página de manga y panel roto), registrar su estado, lecturas, archivar y la inspección en la bóveda |
 
 - Hasta completar cada paso, **lo que viene después queda bloqueado**: los botones y clicks en 3D de la bóveda (aparece un aviso), las pestañas del menú (marcadas "bloq."), la apertura de expedientes y el retiro de sellos.
 - Los pasos de explicación se cierran con **[ENTER] Entendido**. Los de acción avanzan solos cuando se hacen (abrir la caja, identificarse, retirar un sello…). El elemento del paso se resalta en amarillo (atributo `data-tour`).

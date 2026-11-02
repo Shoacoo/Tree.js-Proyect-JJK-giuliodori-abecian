@@ -30,7 +30,7 @@ export default function TourCard({ tour, paused = false, placement = 'shell' }) 
     const onKey = (event) => {
       if (event.key !== 'Enter' || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target;
-      if (/^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? '') || target?.closest?.('button, a')) return;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? '') || target?.closest?.('button:not(.manga__close), a')) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       nextRef.current();

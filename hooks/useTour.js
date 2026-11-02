@@ -29,9 +29,7 @@ export function useTour(snapshot = {}) {
   // Pestañas del sistema abiertas hasta este paso. Fuera del sistema, solo la de la sesión.
   const unlockedTabs = (() => {
     if (!active) return TOUR_TABS;
-    const visited = TOUR.slice(0, index + 1)
-      .map((s) => s.tab)
-      .filter(Boolean);
+    const visited = TOUR.slice(0, index + 1).flatMap((s) => [s.tab, ...(s.tabs ?? [])].filter(Boolean));
     if (step.where === 'case') return TOUR_TABS;
     return visited.length ? TOUR_TABS.filter((tab) => visited.includes(tab)) : ['sesion'];
   })();

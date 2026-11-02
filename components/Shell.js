@@ -211,7 +211,7 @@ export default function Shell({ active, children, hints = DEFAULT_HINTS, status,
         <span className="shell__b3" aria-hidden="true">
           B3
         </span>
-        <nav className="shell__menu" aria-label="Menú del sistema">
+        <nav className="shell__menu" aria-label="Menú del sistema" data-tour="menu">
           {items.map((item) =>
             tour?.tabLocked(item.id) && active !== item.id ? (
               <span key={item.id} className="shell__item is-locked" aria-disabled="true" title="Se desbloquea más adelante en el recorrido">

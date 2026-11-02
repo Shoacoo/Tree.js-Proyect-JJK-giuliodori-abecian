@@ -1,11 +1,13 @@
-// Recorrido guiado de la primera partida. Va de la bóveda a la terminal, recorre cada pestaña
-// del sistema y termina en el primer expediente. Cada paso muestra un cartel; hasta completarlo,
+// Recorrido guiado de la primera partida. Va de la bóveda a la terminal, presenta el sistema
+// y termina en el primer expediente. Cada paso muestra un cartel; hasta completarlo,
 // lo que viene después queda bloqueado.
 //
 // where: dónde se muestra el cartel ('vault', 'index' o 'case').
 // ack: el paso se completa con "Entendido". Si no, se completa solo cuando done(estado) da true.
 // allow: acciones permitidas en la bóveda mientras dura el paso ("navigate:right", "box:B3-04"...).
 // tab: pestaña del sistema que se abre y se desbloquea con el paso.
+// tabs: otras pestañas que se desbloquean con el paso.
+// over: el cartel también se muestra con esa ventana abierta ('manga': la página del residuo).
 // target: elemento que se resalta (atributo data-tour).
 // side: 'left' cuando el elemento queda a la derecha y el cartel lo taparía.
 
@@ -45,7 +47,7 @@ export const TOUR = [
     id: 'tablon-leer',
     where: 'vault',
     title: 'Qué anota el tablón',
-    text: 'A la izquierda, los objetivos: la flecha roja marca el que sigue. Abajo, cuántos dedos archivaste y las fugas. A la derecha, los detalles de los residuos: quedan en blanco hasta que los encontrás. Se actualiza solo y podés volver cuando quieras.',
+    text: 'A la izquierda, los objetivos: la flecha roja marca el que sigue. Abajo, cuántos dedos archivaste y las fugas. A la derecha, los detalles que vayas descubriendo: quedan en blanco hasta entonces. Se actualiza solo y podés volver cuando quieras.',
     ack: true,
   },
   {
@@ -92,74 +94,21 @@ export const TOUR = [
     done: (s) => s.signedIn,
   },
   {
-    id: 'sesion',
+    id: 'sistema',
     where: 'index',
     tab: 'sesion',
-    title: 'Sesión',
-    text: 'Tu escritorio: quién está a cargo, la orden de mantenimiento que te asignaron y dónde se guarda el progreso (en la nube o en este equipo).',
+    tabs: TOUR_TABS,
+    title: 'El sistema',
+    text: 'Este es tu escritorio, con la orden que te asignaron. En el menú tenés el resto: Lote (los dedos), Registro (todo lo que hacés queda anotado), Barrera (baja con cada fuga y con cada dedo archivado; si se pone crítica, algo despierta), Protocolo (las reglas), Formularios (ajustes, finales y repetir este recorrido) y Ayuda (los pasos y los atajos). Podés mirarlas ahora o cuando las necesites.',
     ack: true,
-    target: 'menu-sesion',
-  },
-  {
-    id: 'lote',
-    where: 'index',
-    tab: 'lote',
-    title: 'Lote',
-    text: 'Los tres dedos del lote, cada uno con su expediente. Se inspeccionan en orden: el siguiente se abre recién cuando archivás el anterior.',
-    ack: true,
-    target: 'menu-lote',
-  },
-  {
-    id: 'registro',
-    where: 'index',
-    tab: 'registro',
-    title: 'Registro',
-    text: 'Todo lo que hacés queda anotado acá con la hora: cada sello retirado, cada estado registrado y cada fuga.',
-    ack: true,
-    target: 'menu-registro',
-  },
-  {
-    id: 'barrera',
-    where: 'index',
-    tab: 'barrera',
-    title: 'Barrera',
-    text: 'La barrera del depósito. Baja con cada fuga de energía maldita y con cada dedo archivado. Si se pone crítica, algo despierta.',
-    ack: true,
-    target: 'menu-barrera',
-  },
-  {
-    id: 'protocolo',
-    where: 'index',
-    tab: 'protocolo',
-    title: 'Protocolo',
-    text: 'Las reglas de la inspección. La primera importa más que ninguna: los sellos se retiran en orden inverso al de colocación.',
-    ack: true,
-    target: 'menu-protocolo',
-  },
-  {
-    id: 'formularios',
-    where: 'index',
-    tab: 'formularios',
-    title: 'Formularios',
-    text: 'Ajustes del equipo (sonido, efectos y calidad), los finales que ya viste y la sesión. Desde acá también podés repetir este recorrido.',
-    ack: true,
-    target: 'menu-formularios',
-  },
-  {
-    id: 'ayuda',
-    where: 'index',
-    tab: 'ayuda',
-    title: 'Ayuda',
-    text: 'Los pasos de una inspección y los atajos de teclado, por si te olvidás de algo.',
-    ack: true,
-    target: 'menu-ayuda',
+    target: 'menu',
   },
   {
     id: 'abrir',
     where: 'index',
     tab: 'lote',
     title: 'Abrir el primer expediente',
-    text: `Volvé al lote y abrí ${FIRST.code}.`,
+    text: `Los dedos se inspeccionan en orden: el siguiente se abre recién cuando archivás el anterior. Abrí ${FIRST.code}.`,
     target: `case-${FIRST.id}`,
     done: (s) => s.where === 'case' && s.caseId === FIRST.id,
   },
@@ -172,19 +121,20 @@ export const TOUR = [
     target: 'viewport',
   },
   {
-    id: 'residuo',
-    where: 'case',
-    title: 'Los residuos',
-    text: 'Cada sello que retires abre su residuo: una página de manga con el pasado del dedo. Tocá las palabras subrayadas para registrar un detalle. Abajo hay un panel roto: si sacás los pedazos, muestra algo más. Lo podés releer después con Releer residuo.',
-    ack: true,
-  },
-  {
     id: 'retirar',
     where: 'case',
     title: 'Retirar un sello',
     text: 'Cada tramo de papel es un sello y se retira por separado, en orden inverso al de colocación. Leé la nota de campo para saber cuál va primero. Mantené presionado sobre el papel hasta que se despegue, o usá Retirar en la lista.',
     target: 'seals',
     done: (s) => s.peeled > 0,
+  },
+  {
+    id: 'residuo',
+    where: 'case',
+    over: 'manga',
+    title: 'Un residuo',
+    text: 'Cada sello que retirás abre una página con el pasado del dedo. Tocá las palabras subrayadas para registrar un detalle. Abajo hay un panel roto: si sacás los pedazos, muestra algo más. Después la podés volver a leer con Releer residuo.',
+    ack: true,
   },
   {
     id: 'estado',

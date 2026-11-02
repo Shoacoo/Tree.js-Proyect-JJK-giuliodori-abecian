@@ -126,7 +126,7 @@ export default function CaseFile({ caseId }) {
       active="lote"
       hints="[+/−] Zoom  [L] Luz  [1/2/3] Estado del papel  [A] Archivar  [ESC] Volver al lote"
       tour={tour}
-      tourPaused={Boolean(fb)}
+      tourPaused={Boolean(fb) && tour.step?.over !== 'manga'}
     >
       <ScreenHead eyebrow={`Expediente · ${SETTING.lot}`} title={`${data.code} · ${shortPlace(data.place)}`} />
       <div className="case">
